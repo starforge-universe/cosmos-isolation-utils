@@ -1,3 +1,101 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "cosmos-isolation-utils"
+version = "0.1.0"
+description = "Utilities for Azure CosmosDB isolation and testing"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Starforge Worker", email = "star.forge.worker@gmail.com"}
+]
+maintainers = [
+    {name = "Starforge Worker", email = "star.forge.worker@gmail.com"}
+]
+keywords = ["cosmosdb", "azure", "database", "testing", "isolation", "nosql"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Database",
+    "Topic :: Software Development :: Testing",
+]
+requires-python = ">=3.10"
+dependencies = [
+    # Add your CosmosDB dependencies here
+    # "azure-cosmos>=4.0.0",
+    # "azure-identity>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pylint>=3.0.0",
+    "coverage>=7.0.0",
+    "sphinx>=6.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/starforge-universe/cosmos-isolation-utils"
+Documentation = "https://cosmos-isolation-utils.readthedocs.io/"
+Repository = "https://github.com/starforge-universe/cosmos-isolation-utils"
+"Bug Tracker" = "https://github.com/starforge-universe/cosmos-isolation-utils/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cosmos_isolation_utils*"]
+
+
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+    "C0103",  # invalid-name
+]
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "ex", "Run", "_"]
+
+[tool.coverage.run]
+source = ["cosmos_isolation_utils"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+
+
+
+
+
