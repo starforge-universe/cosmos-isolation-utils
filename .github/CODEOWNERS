@@ -1,1 +1,23 @@
-* @StarForgeWorker
+# Global owners
+* @starforge-universe
+
+# Dependabot configuration
+.github/dependabot.yml @starforge-universe
+
+# Workflow files
+.github/workflows/ @starforge-universe
+
+# Python package
+cosmos_isolation_utils/ @starforge-universe
+
+# Tests
+tests/ @starforge-universe
+
+# Documentation
+docs/ @starforge-universe
+*.md @starforge-universe
+
+# Configuration files
+pyproject.toml @starforge-universe
+setup.py @starforge-universe
+setup.cfg @starforge-universe
