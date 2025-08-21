@@ -26,17 +26,16 @@ Follow these steps to merge updates from the template remote into your repositor
 
 5. **Test and validate the merge**
    - Execute all checks defined in `./.github/workflows/__call__checks.yaml` to ensure nothing is broken.
-   - Example:
-     ```sh
-     # Run the checks locally as defined in the workflow file
-     ```
 
-6. **Push the feature branch and open a pull request**
+6. **Add files to git if there are changes**
+   - Use git add command to add the changes files.
+
+7. **Push the feature branch and open a pull request**
    ```sh
    git push origin feature/template-update
    ```
 
-7. **Switch back to main and clean up the feature branch locally**
+8. **Switch back to main and clean up the feature branch locally**
    ```sh
    git checkout main
    git branch -d feature/template-update
