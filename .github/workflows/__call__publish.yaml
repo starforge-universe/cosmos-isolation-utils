@@ -19,6 +19,10 @@ jobs:
     name: 'Publish to PyPI'
     runs-on: ubuntu-latest
     steps:
+      - name: 'Checkout project sources'
+        uses: actions/checkout@v5
+        # Required for pyproject.toml access and version consistency
+
       - name: 'Download build artifacts'
         uses: actions/download-artifact@v4
         with:
