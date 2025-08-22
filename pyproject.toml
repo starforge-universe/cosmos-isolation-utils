@@ -7,7 +7,7 @@ name = "cosmos-isolation-utils"
 version = "0.1.0"
 description = "Utilities for Azure CosmosDB isolation and testing"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license-files = ["LICENSE"]
 authors = [
     {name = "Starforge Worker", email = "star.forge.worker@gmail.com"}
 ]
@@ -18,7 +18,6 @@ keywords = ["cosmosdb", "azure", "database", "testing", "isolation", "nosql"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -51,7 +50,7 @@ Repository = "https://github.com/starforge-universe/cosmos-isolation-utils"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cosmos_isolation_utils*"]
+include = ["cosmos_isolation_utils"]
 
 
 

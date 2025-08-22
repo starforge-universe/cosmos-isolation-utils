@@ -1,0 +1,16 @@
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include cosmos_isolation_utils *.py
+exclude tests/*
+exclude docs/*
+exclude venv/*
+exclude htmlcov/*
+exclude *.egg-info/*
+exclude .coverage
+exclude .pylintrc
+exclude Makefile
+exclude CHANGELOG.md
+exclude CONTRIBUTING.md
+exclude .gitignore
+exclude .DS_Store
