@@ -1,7 +1,7 @@
-.PHONY: help install install-dev test test-cov coverage lint clean docs
+.PHONY: help install install-dev test test-cov lint clean build install-cli
 
 help:  ## Show this help message
-	@echo "Available commands:"
+	@echo "CosmosDB Isolation Utilities - Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install the package in development mode
@@ -10,38 +10,42 @@ install:  ## Install the package in development mode
 install-dev:  ## Install the package with development dependencies
 	pip install -e ".[dev]"
 
-test:  ## Run tests
-	python -m unittest discover tests
+install-cli: install  ## Install the CLI tool
+	@echo "CLI tool 'cosmos-isolation-utils' installed successfully!"
+	@echo "Usage: cosmos-isolation-utils --help"
+
+test:  ## Run the test suite
+	python -m pytest tests/ -v
 
 test-cov:  ## Run tests with coverage
-	coverage run -m unittest discover tests
-	coverage report
-	coverage html
-
-coverage:  ## Generate coverage report only
-	coverage report
-	coverage html
+	python -m pytest tests/ --cov=cosmos_isolation_utils --cov-report=html --cov-report=term
 
 lint:  ## Run linting checks
 	pylint cosmos_isolation_utils/
 
-
-
-
-
-clean:  ## Clean build artifacts
+clean:  ## Clean up build artifacts
 	rm -rf build/
 	rm -rf dist/
 	rm -rf *.egg-info/
-	rm -rf .pytest_cache/
-	rm -rf .coverage
 	rm -rf htmlcov/
-	find . -type d -name __pycache__ -delete
+	rm -rf .pytest_cache/
 	find . -type f -name "*.pyc" -delete
+	find . -type d -name "__pycache__" -delete
 
-docs:  ## Build documentation
-	cd docs && make html
+build:  ## Build the package
+	python -m build
 
-docs-serve:  ## Serve documentation locally
-	cd docs/_build/html && python -m http.server 8000
+demo:  ## Run a demo of the CLI tool
+	@echo "=== CosmosDB Isolation Utilities CLI Demo ==="
+	@echo ""
+	@echo "1. Show help:"
+	@echo "   python -m cosmos_isolation_utils --help"
+	@echo ""
+	@echo "2. Show subcommand help:"
+	@echo "   python -m cosmos_isolation_utils -e dummy -k dummy -d dummy test --help"
+	@echo ""
+	@echo "3. List available subcommands:"
+	@echo "   python -m cosmos_isolation_utils --help"
+	@echo ""
+	@echo "Note: Replace 'dummy' with actual values for real usage"
 

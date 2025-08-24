@@ -29,9 +29,10 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    # Add your CosmosDB dependencies here
-    # "azure-cosmos>=4.0.0",
-    # "azure-identity>=1.0.0",
+    "azure-cosmos>=4.0.0",
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "urllib3>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -50,7 +51,13 @@ Repository = "https://github.com/starforge-universe/cosmos-isolation-utils"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cosmos_isolation_utils"]
+include = ["cosmos_isolation_utils*"]
+
+[project.scripts]
+cosmos-isolation-utils = "cosmos_isolation_utils.cli:main"
+
+[project.entry-points."console_scripts"]
+cosmos-isolation-utils = "cosmos_isolation_utils.cli:main"
 
 
 

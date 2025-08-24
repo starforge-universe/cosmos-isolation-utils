@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""
+Main entry point for the cosmos-isolation-utils CLI tool.
+
+This module provides a unified command-line interface for all CosmosDB isolation utilities.
+"""
+
+import sys
+import click
+from rich.console import Console
+from rich.panel import Panel
+
+from .core import (
+    test_connection,
+    get_container_status,
+    dump_containers,
+    upload_entries,
+    delete_database
+)
+
+console = Console()
+
+
+@click.group()
+@click.version_option(version="0.1.0", prog_name="cosmos-isolation-utils")
+@click.option('--endpoint', '-e', required=True, 
+              help='CosmosDB endpoint URL')
+@click.option('--key', '-k', required=True, 
+              help='CosmosDB primary key')
+@click.option('--database', '-d', required=True, 
+              help='CosmosDB database name')
+@click.option('--allow-insecure', '-a', is_flag=True,
+              help='Allow insecure HTTPS requests (suppress warnings)')
+@click.pass_context
+def main(ctx, endpoint: str, key: str, database: str, allow_insecure: bool):
+    """
+    CosmosDB Isolation Utilities - A unified CLI for managing CosmosDB databases.
+    
+    This tool provides various utilities for testing, monitoring, and managing
+    CosmosDB databases in isolation environments.
+    """
+    # Store common parameters in context
+    ctx.ensure_object(dict)
+    ctx.obj['endpoint'] = endpoint
+    ctx.obj['key'] = key
+    ctx.obj['database'] = database
+    ctx.obj['allow_insecure'] = allow_insecure
+
+
+@main.command()
+@click.option('--create-database', is_flag=True, 
+              help='Create database if it does not exist')
+@click.option('--force', '-f', is_flag=True, 
+              help='Skip confirmation prompts')
+@click.pass_context
+def test(ctx, create_database: bool, force: bool):
+    """Test CosmosDB connection and list containers."""
+    console.print(Panel("[bold blue]Testing CosmosDB Connection[/bold blue]"))
+    
+    try:
+        test_connection(
+            endpoint=ctx.obj['endpoint'],
+            key=ctx.obj['key'],
+            database=ctx.obj['database'],
+            allow_insecure=ctx.obj['allow_insecure'],
+            create_database=create_database,
+            force=force
+        )
+    except Exception as e:
+        console.print(f"[red]Connection test failed: {e}[/red]")
+        sys.exit(1)
+
+
+@main.command()
+@click.option('--detailed', is_flag=True,
+              help='Show detailed information for each container')
+@click.pass_context
+def status(ctx, detailed: bool):
+    """Show the status and statistics of all containers in a CosmosDB database."""
+    try:
+        get_container_status(
+            endpoint=ctx.obj['endpoint'],
+            key=ctx.obj['key'],
+            database=ctx.obj['database'],
+            allow_insecure=ctx.obj['allow_insecure'],
+            detailed=detailed
+        )
+    except Exception as e:
+        console.print(f"[red]Failed to get container status: {e}[/red]")
+        sys.exit(1)
+
+
+@main.command()
+@click.option('--containers', '-c', 
+              help='Comma-separated list of container names to dump (or "all" for all containers)')
+@click.option('--output', '-o', required=True, 
+              help='Output JSON file path')
+@click.option('--batch-size', '-b', default=100, 
+              help='Batch size for processing (default: 100)')
+@click.option('--pretty', '-p', is_flag=True, 
+              help='Pretty print JSON output')
+@click.option('--list-containers', '-l', is_flag=True, 
+              help='List all available containers')
+@click.pass_context
+def dump(ctx, containers: str, output: str, batch_size: int, 
+         pretty: bool, list_containers: bool):
+    """Dump all entries from multiple CosmosDB containers to a single JSON file."""
+    try:
+        dump_containers(
+            endpoint=ctx.obj['endpoint'],
+            key=ctx.obj['key'],
+            database=ctx.obj['database'],
+            allow_insecure=ctx.obj['allow_insecure'],
+            containers=containers,
+            output=output,
+            batch_size=batch_size,
+            pretty=pretty,
+            list_containers=list_containers
+        )
+    except Exception as e:
+        console.print(f"[red]Failed to dump containers: {e}[/red]")
+        sys.exit(1)
+
+
+@main.command()
+@click.option('--input', '-i', required=True, 
+              help='Input JSON file path')
+@click.option('--batch-size', '-b', default=100, 
+              help='Batch size for processing (default: 100)')
+@click.option('--upsert', '-u', is_flag=True, 
+              help='Use upsert instead of create (overwrites existing items)')
+@click.option('--dry-run', '-r', is_flag=True, 
+              help='Show what would be uploaded without actually uploading')
+@click.option('--force', '-f', is_flag=True, 
+              help='Skip confirmation prompts')
+@click.option('--create-containers', is_flag=True, 
+              help='Automatically create containers if they do not exist')
+@click.option('--containers', '-c', 
+              help='Comma-separated list of specific containers to upload')
+@click.pass_context
+def upload(ctx, input: str, batch_size: int, upsert: bool, dry_run: bool, 
+           force: bool, create_containers: bool, containers: str):
+    """Upload entries from a multi-container JSON file to CosmosDB containers."""
+    try:
+        upload_entries(
+            endpoint=ctx.obj['endpoint'],
+            key=ctx.obj['key'],
+            database=ctx.obj['database'],
+            allow_insecure=ctx.obj['allow_insecure'],
+            input=input,
+            batch_size=batch_size,
+            upsert=upsert,
+            dry_run=dry_run,
+            force=force,
+            create_containers=create_containers,
+            containers=containers
+        )
+    except Exception as e:
+        console.print(f"[red]Failed to upload entries: {e}[/red]")
+        sys.exit(1)
+
+
+@main.command()
+@click.option('--list-databases', '-l', is_flag=True, 
+              help='List all existing databases')
+@click.option('--force', '-f', is_flag=True, 
+              help='Skip confirmation prompts for deletion')
+@click.pass_context
+def delete_db(ctx, list_databases: bool, force: bool):
+    """Delete CosmosDB databases with safety confirmations."""
+    try:
+        delete_database(
+            endpoint=ctx.obj['endpoint'],
+            key=ctx.obj['key'],
+            allow_insecure=ctx.obj['allow_insecure'],
+            list_databases=list_databases,
+            force=force
+        )
+    except Exception as e:
+        console.print(f"[red]Failed to delete database: {e}[/red]")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

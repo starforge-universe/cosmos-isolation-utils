@@ -8,6 +8,4 @@ __version__ = "0.1.0"
 __author__ = "Starforge Worker"
 __email__ = "star.forge.worker@gmail.com"
 
-from .hello_world import HelloWorld
-
-__all__ = ["HelloWorld"]
+__all__ = []
