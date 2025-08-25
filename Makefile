@@ -15,10 +15,12 @@ install-cli: install  ## Install the CLI tool
 	@echo "Usage: cosmos-isolation-utils --help"
 
 test:  ## Run the test suite
-	python -m pytest tests/ -v
+	python -m unittest discover tests/ -v
 
 test-cov:  ## Run tests with coverage
-	python -m pytest tests/ --cov=cosmos_isolation_utils --cov-report=html --cov-report=term
+	python -m coverage run -m unittest discover tests/ -v
+	python -m coverage report --include="cosmos_isolation_utils/*"
+	python -m coverage html --include="cosmos_isolation_utils/*"
 
 lint:  ## Run linting checks
 	pylint cosmos_isolation_utils/

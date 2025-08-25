@@ -2,59 +2,60 @@
 Tests for the unified CLI interface.
 """
 
-import pytest
+import unittest
 from click.testing import CliRunner
 from cosmos_isolation_utils.__main__ import main
 
 
-def test_cli_help():
-    """Test that the CLI help command works."""
-    runner = CliRunner()
-    result = runner.invoke(main, ['--help'])
-    assert result.exit_code == 0
-    assert 'CosmosDB Isolation Utilities' in result.output
+class TestCLI(unittest.TestCase):
+    """Test cases for the CLI interface."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.runner = CliRunner()
+
+    def test_cli_help(self):
+        """Test that the CLI help command works."""
+        result = self.runner.invoke(main, ['--help'])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('CosmosDB Isolation Utilities', result.output)
+
+    def test_cli_version(self):
+        """Test that the CLI version command works."""
+        result = self.runner.invoke(main, ['--version'])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('0.1.0', result.output)
+
+    def test_cli_missing_required_params(self):
+        """Test that the CLI requires all required parameters."""
+        result = self.runner.invoke(main, ['test'])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn('Missing option', result.output)
+
+    def test_cli_subcommands(self):
+        """Test that all subcommands are available."""
+        # Test each subcommand help
+        subcommands = ['test', 'status', 'dump', 'upload', 'delete-db']
+        
+        result = self.runner.invoke(main, ['--help'])
+        self.assertEqual(result.exit_code, 0)
+        
+        for subcommand in subcommands:
+            self.assertIn(subcommand, result.output)
+
+    def test_cli_common_params(self):
+        """Test that common parameters are available for all subcommands."""
+        # Test that endpoint, key, and database are required
+        result = self.runner.invoke(main, ['--help'])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('--endpoint', result.output)
+        self.assertIn('--key', result.output)
+        self.assertIn('--database', result.output)
+        
+        # Test that subcommand help shows the common parameters
+        result = self.runner.invoke(main, ['-e', 'dummy', '-k', 'dummy', '-d', 'dummy', 'test', '--help'])
+        self.assertEqual(result.exit_code, 0)
 
 
-def test_cli_version():
-    """Test that the CLI version command works."""
-    runner = CliRunner()
-    result = runner.invoke(main, ['--version'])
-    assert result.exit_code == 0
-    assert '0.1.0' in result.output
-
-
-def test_cli_missing_required_params():
-    """Test that the CLI requires all required parameters."""
-    runner = CliRunner()
-    result = runner.invoke(main, ['test'])
-    assert result.exit_code != 0
-    assert 'Missing option' in result.output
-
-
-def test_cli_subcommands():
-    """Test that all subcommands are available."""
-    runner = CliRunner()
-    
-    # Test each subcommand help
-    subcommands = ['test', 'status', 'dump', 'upload', 'delete-db']
-    
-    for subcommand in subcommands:
-        result = runner.invoke(main, ['--help'])
-        assert result.exit_code == 0
-        assert subcommand in result.output
-
-
-def test_cli_common_params():
-    """Test that common parameters are available for all subcommands."""
-    runner = CliRunner()
-    
-    # Test that endpoint, key, and database are required
-    result = runner.invoke(main, ['--help'])
-    assert result.exit_code == 0
-    assert '--endpoint' in result.output
-    assert '--key' in result.output
-    assert '--database' in result.output
-    
-    # Test that subcommand help shows the common parameters
-    result = runner.invoke(main, ['-e', 'dummy', '-k', 'dummy', '-d', 'dummy', 'test', '--help'])
-    assert result.exit_code == 0
+if __name__ == '__main__':
+    unittest.main()

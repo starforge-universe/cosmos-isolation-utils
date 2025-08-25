@@ -208,16 +208,34 @@ This separation makes the code more maintainable and testable, while providing a
 
 ## Development
 
+### Setup Development Environment
+
+```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install development dependencies
+pip install -e ".[dev]"
+```
+
 ### Running Tests
 
 ```bash
-python -m pytest tests/
-```
+# Using unittest discover (recommended)
+python -m unittest discover tests/ -v
 
-### Development Installation
+# Using make
+make test
 
-```bash
-pip install -e ".[dev]"
+# Run specific test file
+python -m unittest tests.test_cli -v
+
+# Run test file directly
+python tests/test_cli.py -v
+
+# Run tests with coverage
+make test-cov
 ```
 
 ### Code Quality
