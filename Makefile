@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov lint clean build install-cli
+.PHONY: help install install-dev test test-cov lint clean build check-dist upload-pypi install-cli
 
 help:  ## Show this help message
 	@echo "CosmosDB Isolation Utilities - Available commands:"
@@ -36,6 +36,12 @@ clean:  ## Clean up build artifacts
 
 build:  ## Build the package
 	python -m build
+
+check-dist:  ## Check distribution files
+	twine check dist/*
+
+upload-pypi:  ## Upload package to PyPI (requires PYPI_USERNAME and PYPI_PASSWORD env vars)
+	twine upload --repository-url $(PYPI_REPOSITORY) -u $(PYPI_USERNAME) -p $(PYPI_PASSWORD) dist/*
 
 demo:  ## Run a demo of the CLI tool
 	@echo "=== CosmosDB Isolation Utilities CLI Demo ==="
