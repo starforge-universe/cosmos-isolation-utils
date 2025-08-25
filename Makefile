@@ -23,7 +23,7 @@ test-cov:  ## Run tests with coverage
 	python -m coverage html --include="cosmos_isolation_utils/*"
 
 lint:  ## Run linting checks
-	pylint cosmos_isolation_utils/
+	pylint cosmos_isolation_utils/ --rcfile=pyproject.toml
 
 clean:  ## Clean up build artifacts
 	rm -rf build/

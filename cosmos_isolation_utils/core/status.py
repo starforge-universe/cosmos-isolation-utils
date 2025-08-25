@@ -2,25 +2,25 @@
 Core container status functionality for CosmosDB.
 """
 
-import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .cosmos_client import CosmosDBClient
+from .config import DatabaseConfig, StatusConfig
 
 console = Console()
 
 
-def get_container_status(endpoint: str, key: str, database: str, allow_insecure: bool, detailed: bool):
+def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig):
     """Show the status and statistics of all containers in a CosmosDB database."""
 
     try:
         # Initialize CosmosDB client
-        client = CosmosDBClient(endpoint, key, database, allow_insecure)
+        client = CosmosDBClient(db_config)
 
-        console.print(Panel(f"[bold blue]Database: {database}[/bold blue]"))
+        console.print(Panel(f"[bold blue]Database: {db_config.database}[/bold blue]"))
 
         # Get container statistics
         with Progress(
@@ -81,7 +81,7 @@ def get_container_status(endpoint: str, key: str, database: str, allow_insecure:
         console.print(table)
 
         # Show detailed information if requested
-        if detailed:
+        if status_config.detailed:
             console.print("\n" + "="*80)
             console.print("[bold]Detailed Container Information[/bold]")
 
@@ -104,7 +104,8 @@ def get_container_status(endpoint: str, key: str, database: str, allow_insecure:
         if empty_containers:
             empty_names = ', '.join(stat['name'] for stat in empty_containers)
             console.print(
-                f"[yellow]• {len(empty_containers)} containers are empty: {empty_names}[/yellow]"
+                f"[yellow]• {len(empty_containers)} containers are empty: "
+                f"{empty_names}[/yellow]"
             )
 
         # Check for containers without partition keys
@@ -120,13 +121,13 @@ def get_container_status(endpoint: str, key: str, database: str, allow_insecure:
         # Show dump commands
         console.print("\n[bold]Dump Commands:[/bold]")
         dump_all_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
+            f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"dump -c all -o all_containers.json"
         )
         console.print(f"[cyan]• Dump all containers:[/cyan] {dump_all_cmd}")
 
         dump_specific_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
+            f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"dump -c 'container1,container2' -o selected_containers.json"
         )
         console.print(f"[cyan]• Dump specific containers:[/cyan] {dump_specific_cmd}")
@@ -134,13 +135,13 @@ def get_container_status(endpoint: str, key: str, database: str, allow_insecure:
         # Show upload commands
         console.print("\n[bold]Upload Commands:[/bold]")
         upload_all_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
+            f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"upload -i all_containers.json --create-containers"
         )
         console.print(f"[cyan]• Upload all containers:[/cyan] {upload_all_cmd}")
 
         upload_specific_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
+            f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"upload -i all_containers.json -c 'container1,container2' --create-containers"
         )
         console.print(f"[cyan]• Upload specific containers:[/cyan] {upload_specific_cmd}")

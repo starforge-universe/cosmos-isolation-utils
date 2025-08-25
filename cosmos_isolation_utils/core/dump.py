@@ -3,26 +3,25 @@ Core container dumping functionality for CosmosDB.
 """
 
 import json
-import sys
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from .cosmos_client import CosmosDBClient
+from .config import DatabaseConfig, DumpConfig
 
 console = Console()
 
 
-def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool,
-                   containers: str, output: str, batch_size: int, pretty: bool, list_containers: bool):
+def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
     """Dump all entries from multiple CosmosDB containers to a single JSON file."""
 
     try:
         # Initialize CosmosDB client
-        client = CosmosDBClient(endpoint, key, database, allow_insecure)
+        client = CosmosDBClient(db_config)
 
-        if list_containers:
+        if dump_config.list_containers:
             containers_list = client.list_containers()
             table = Table(title="Available Containers")
             table.add_column("Container Name", style="cyan")
@@ -35,23 +34,24 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
             return
 
         # Determine which containers to dump
-        if not containers:
+        if not dump_config.containers:
             console.print(
                 "[red]Error: Please specify containers to dump using --containers option[/red]"
             )
             console.print("Use --containers all to dump all containers")
             console.print(
-                "Or use --containers 'container1,container2,container3' to dump specific containers"
+                "Or use --containers 'container1,container2,container3' to dump "
+                "specific containers"
             )
             raise Exception("No containers specified")
 
         available_containers = client.list_containers()
 
-        if containers.lower() == 'all':
+        if dump_config.containers.lower() == 'all':
             containers_to_dump = available_containers
             console.print(f"[cyan]Dumping all {len(containers_to_dump)} containers[/cyan]")
         else:
-            containers_to_dump = [c.strip() for c in containers.split(',')]
+            containers_to_dump = [c.strip() for c in dump_config.containers.split(',')]
             # Validate that all specified containers exist
             missing_containers = [
                 c for c in containers_to_dump if c not in available_containers
@@ -65,8 +65,12 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
 
         # Prepare output data structure for multiple containers
         output_data = {
-            "database": database,
-            "exported_at": str(Path(output).stat().st_mtime) if Path(output).exists() else "N/A",
+            "database": db_config.database,
+            "exported_at": (
+                str(Path(dump_config.output_dir).stat().st_mtime)
+                if Path(dump_config.output_dir).exists()
+                else "N/A"
+            ),
             "total_containers": len(containers_to_dump),
             "total_items": 0,
             "containers": []
@@ -78,7 +82,9 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
             console.print(Panel(f"[bold blue]Processing container: {container_name}[/bold blue]"))
 
             # Get container properties to extract partition key
-            console.print(f"[cyan]Extracting partition key information for {container_name}...[/cyan]")
+            console.print(
+                f"[cyan]Extracting partition key information for {container_name}...[/cyan]"
+            )
             try:
                 container_properties = client.get_container_properties(container_name)
 
@@ -96,7 +102,9 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
                 items = client.get_all_items(container_name)
 
                 if not items:
-                    console.print(f"[yellow]No items found in container '{container_name}'[/yellow]")
+                    console.print(
+                        f"[yellow]No items found in container '{container_name}'[/yellow]"
+                    )
                     # Still add container info even if empty
                     container_data = {
                         "name": container_name,
@@ -149,7 +157,7 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
             raise Exception("No containers were successfully processed")
 
         # Ensure output directory exists
-        output_path = Path(output)
+        output_path = Path(dump_config.output_dir)
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
@@ -159,7 +167,7 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
         # Write to JSON file
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
-                if pretty:
+                if dump_config.pretty:
                     json.dump(output_data, f, indent=2, ensure_ascii=False, default=str)
                 else:
                     json.dump(output_data, f, ensure_ascii=False, default=str)
@@ -171,7 +179,7 @@ def dump_containers(endpoint: str, key: str, database: str, allow_insecure: bool
         console.print(Panel("[bold green]Export Summary[/bold green]"))
         console.print(
             f"[green]Successfully exported {output_data['total_items']} items from "
-            f"{len(output_data['containers'])} containers to {output}[/green]"
+            f"{len(output_data['containers'])} containers to {dump_config.output_dir}[/green]"
         )
 
         if failed_containers:

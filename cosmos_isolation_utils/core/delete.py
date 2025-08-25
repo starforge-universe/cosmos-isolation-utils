@@ -2,7 +2,6 @@
 Core database deletion functionality for CosmosDB.
 """
 
-import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -11,27 +10,28 @@ from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError
 import urllib3
 
+from .config import DatabaseConfig, DeleteConfig
+
+
+
 console = Console()
 
 
 class DatabaseDeleter:
     """Class for deleting CosmosDB databases."""
 
-    def __init__(self, endpoint: str, key: str, allow_insecure: bool = False):
-        self.endpoint = endpoint
-        self.key = key
-
+    def __init__(self, db_config: DatabaseConfig):
         console.print("[cyan]Initializing CosmosDB client...[/cyan]")
-        console.print(f"  Endpoint: {endpoint}")
-        console.print(f"  Allow insecure: {allow_insecure}")
+        console.print(f"  Endpoint: {db_config.endpoint}")
+        console.print(f"  Allow insecure: {db_config.allow_insecure}")
 
         # Control HTTPS verification warnings
-        if allow_insecure:
+        if db_config.allow_insecure:
             console.print("[cyan]  Suppressing HTTPS verification warnings...[/cyan]")
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         console.print("[cyan]  Creating CosmosClient...[/cyan]")
-        self.client = CosmosClient(endpoint, key)
+        self.client = CosmosClient(db_config.endpoint, db_config.key)
         console.print("[green]  ✓ CosmosClient created[/green]")
         console.print("[green]✓ Database deleter initialization completed[/green]")
 
@@ -73,7 +73,7 @@ class DatabaseDeleter:
             console.print(f"[red]Error getting database info for '{database_name}': {e}[/red]")
             raise
 
-    def delete_database(self, database_name: str, force: bool = False) -> bool:
+    def delete_database(self, database_name: str, force: bool = False) -> bool:  # pylint: disable=unused-argument
         """Delete a database with optional confirmation."""
         try:
             # Get database info first
@@ -97,7 +97,8 @@ class DatabaseDeleter:
             if not force:
                 console.print("\n[bold red]⚠️  WARNING: This action cannot be undone![/bold red]")
                 console.print(
-                    f"[red]All data in database '{database_name}' will be permanently deleted.[/red]"
+                    f"[red]All data in database '{database_name}' will be "
+                    f"permanently deleted.[/red]"
                 )
 
                 if not Confirm.ask(
@@ -136,15 +137,13 @@ class DatabaseDeleter:
             raise
 
 
-def delete_database(endpoint: str, key: str, allow_insecure: bool,
-                   list_databases: bool, force: bool):
+def delete_database(db_config: DatabaseConfig, delete_config: DeleteConfig):
     """Delete CosmosDB databases with safety confirmations."""
-    
     try:
         # Initialize database deleter
-        deleter = DatabaseDeleter(endpoint, key, allow_insecure)
+        deleter = DatabaseDeleter(db_config)
 
-        if list_databases:
+        if delete_config.list_only:
             console.print(Panel("[bold blue]Listing all databases[/bold blue]"))
             databases = deleter.list_databases()
 
@@ -165,9 +164,13 @@ def delete_database(endpoint: str, key: str, allow_insecure: bool,
         # For the unified CLI, we need to get the database name from the context
         # This function is called from the delete_db subcommand which doesn't have a database parameter
         # So we'll just list databases for now
-        console.print("[yellow]Note: Database deletion requires specifying the database name.[/yellow]")
-        console.print("[yellow]Use the list-databases option to see available databases.[/yellow]")
-        
+        console.print(
+            "[yellow]Note: Database deletion requires specifying the database name.[/yellow]"
+        )
+        console.print(
+            "[yellow]Use the list-databases option to see available databases.[/yellow]"
+        )
+
         # List databases by default
         console.print(Panel("[bold blue]Available Databases[/bold blue]"))
         databases = deleter.list_databases()

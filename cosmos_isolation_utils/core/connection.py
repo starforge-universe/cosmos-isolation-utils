@@ -2,30 +2,27 @@
 Core connection testing functionality for CosmosDB.
 """
 
-import sys
 from azure.cosmos.exceptions import CosmosHttpResponseError
 from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Confirm
 
 from .cosmos_client import CosmosDBClient
+from .config import DatabaseConfig, ConnectionConfig
 
 console = Console()
 
 
-def test_connection(endpoint: str, key: str, database: str, allow_insecure: bool,
-                   create_database: bool, force: bool):
+def test_connection(db_config: DatabaseConfig, connection_config: ConnectionConfig):
     """Test CosmosDB connection and list containers."""
-    
-    console.print(f"Endpoint: {endpoint}")
-    console.print(f"Database: {database}")
-    console.print(f"Allow insecure: {allow_insecure}")
-    console.print(f"Create database if missing: {create_database}")
+    console.print(f"Endpoint: {db_config.endpoint}")
+    console.print(f"Database: {db_config.database}")
+    console.print(f"Allow insecure: {db_config.allow_insecure}")
+    console.print(f"Create database if missing: {connection_config.create_database}")
 
     console.print("\n[cyan]Step 1: Initializing CosmosDB client...[/cyan]")
     # Test connection using our custom client
     try:
-        client = CosmosDBClient(endpoint, key, database, allow_insecure)
+        client = CosmosDBClient(db_config)
         console.print("[green]✓ CosmosDB client initialized[/green]")
     except Exception as e:
         console.print(f"[red]Error initializing client: {e}[/red]")
@@ -37,7 +34,7 @@ def test_connection(endpoint: str, key: str, database: str, allow_insecure: bool
 
     try:
         containers = client.list_containers()
-        console.print(f"[green]✓ Successfully connected to database: {database}[/green]")
+        console.print(f"[green]✓ Successfully connected to database: {db_config.database}[/green]")
 
         console.print("\n[cyan]Step 3: Listing containers...[/cyan]")
         if containers:
@@ -52,25 +49,27 @@ def test_connection(endpoint: str, key: str, database: str, allow_insecure: bool
     except CosmosHttpResponseError as e:
         if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
             console.print(
-                f"[yellow]Database '{database}' does not exist or is not accessible.[/yellow]"
+                f"[yellow]Database '{db_config.database}' does not exist or "
+                f"is not accessible.[/yellow]"
             )
 
-            if create_database:
-                if not force:
-                    if not Confirm.ask(f"Do you want to create database '{database}'?"):
+            if connection_config.create_database:
+                if not connection_config.force:
+                    if not Confirm.ask(f"Do you want to create database '{db_config.database}'?"):
                         console.print("[yellow]Database creation cancelled.[/yellow]")
                         return  # User cancelled, exit cleanly
 
                 try:
-                    console.print(f"[cyan]Creating database '{database}'...[/cyan]")
-                    client.client.create_database_if_not_exists(database)
-                    console.print(f"[green]✓ Database '{database}' created successfully[/green]")
+                    console.print(f"[cyan]Creating database '{db_config.database}'...[/cyan]")
+                    client.client.create_database_if_not_exists(db_config.database)
+                    console.print(f"[green]✓ Database '{db_config.database}' created successfully[/green]")
 
                     # Try listing containers again
                     console.print("\n[cyan]Testing database access after creation...[/cyan]")
                     containers = client.list_containers()
                     console.print(
-                        f"[green]✓ Successfully connected to newly created database: {database}[/green]"
+                        f"[green]✓ Successfully connected to newly created "
+                        f"database: {db_config.database}[/green]"
                     )
 
                     if containers:
@@ -83,14 +82,14 @@ def test_connection(endpoint: str, key: str, database: str, allow_insecure: bool
                     console.print("\n[green]Connection test completed successfully![/green]")
 
                 except Exception as e2:
-                    console.print(f"[red]Error creating database '{database}': {e2}[/red]")
+                    console.print(f"[red]Error creating database '{db_config.database}': {e2}[/red]")
                     raise
             else:
                 console.print(
-                    f"[red]Database '{database}' does not exist. "
+                    f"[red]Database '{db_config.database}' does not exist. "
                     f"Use --create-database flag to create it.[/red]"
                 )
-                raise Exception(f"Database '{database}' does not exist")
+                raise Exception(f"Database '{db_config.database}' does not exist") from e
         else:
             console.print(f"[red]Error accessing database: {e}[/red]")
             raise
