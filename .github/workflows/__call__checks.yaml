@@ -23,7 +23,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: 'Run Pylint'
-        run: pylint cosmos_isolation_utils/
+        run: make lint
 
   unitTest:
     name: 'Unit Test'
