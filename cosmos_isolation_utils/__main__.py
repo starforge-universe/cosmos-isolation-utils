@@ -11,7 +11,7 @@ import click
 from .core import (
     ConnectionTester,
     ContainerDumper,
-    upload_entries,
+    ContainerUploader,
     delete_database,
     DatabaseConfig,
     UploadConfig,
@@ -182,7 +182,9 @@ def upload(ctx, input_file: str, batch_size: int, upsert: bool, dry_run: bool,  
             containers=containers
         )
 
-        upload_entries(db_config, upload_config)
+        # Create container uploader instance and run upload
+        uploader = ContainerUploader(db_config, upload_config)
+        uploader.upload_entries()
     except Exception as e:
         log_error(f"Failed to upload entries: {e}")
         sys.exit(1)

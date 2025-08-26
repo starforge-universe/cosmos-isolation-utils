@@ -17,57 +17,66 @@ from .logging_utils import (
 from .config import DatabaseConfig, UploadConfig
 
 
-def _calculate_total_items(containers_to_process):
-    """Calculate total items across all containers."""
-    return sum(c['total_items'] for c in containers_to_process)
+class ContainerUploader:  # pylint: disable=too-few-public-methods
+    """Uploader class for CosmosDB container operations."""
 
+    def __init__(self, db_config: DatabaseConfig, upload_config: UploadConfig):
+        """Initialize the container uploader with database and upload configuration."""
+        self.db_config = db_config
+        self.upload_config = upload_config
+        self.client = None
+        self.data = None
+        self.containers_to_process = []
+        self.available_containers = []
 
-def _format_container_list(containers):
-    """Format a list of container names for display."""
-    return ', '.join(containers)
+    def _calculate_total_items(self, containers_to_process):
+        """Calculate total items across all containers."""
+        return sum(c['total_items'] for c in containers_to_process)
 
+    def _format_container_list(self, containers):
+        """Format a list of container names for display."""
+        return ', '.join(containers)
 
-def _create_partition_key(paths):
-    """Create a PartitionKey object from paths."""
-    if isinstance(paths, str):
-        paths = [paths]
-    elif not isinstance(paths, list):
-        raise ValueError(f"Invalid partition key paths format: {paths}")
+    def _create_partition_key(self, paths):
+        """Create a PartitionKey object from paths."""
+        if isinstance(paths, str):
+            paths = [paths]
+        elif not isinstance(paths, list):
+            raise ValueError(f"Invalid partition key paths format: {paths}")
 
-    if len(paths) == 1:
-        return PartitionKey(path=paths[0])
-    return PartitionKey(paths=paths)
+        if len(paths) == 1:
+            return PartitionKey(path=paths[0])
+        return PartitionKey(paths=paths)
 
-
-def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
-    """Upload entries from a multi-container JSON file to CosmosDB containers."""
-
-    try:
-        # Check if input file exists
-        input_path = Path(upload_config.input_file)
+    def _validate_input_file(self) -> None:
+        """Validate that the input file exists and is readable."""
+        input_path = Path(self.upload_config.input_file)
         if not input_path.exists():
-            log_error(f"Error: Input file '{upload_config.input_file}' not found!")
-            raise Exception(f"Input file '{upload_config.input_file}' not found")
+            log_error(f"Error: Input file '{self.upload_config.input_file}' not found!")
+            raise Exception(f"Input file '{self.upload_config.input_file}' not found")
 
-        # Load JSON data first to check structure
+    def _load_json_data(self) -> None:
+        """Load and parse the JSON data from the input file."""
         try:
-            with open(input_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            with open(self.upload_config.input_file, 'r', encoding='utf-8') as f:
+                self.data = json.load(f)
         except json.JSONDecodeError as e:
             log_error(f"Error: Invalid JSON file: {e}")
             raise Exception(f"Invalid JSON file: {e}")
 
+    def _parse_container_data(self) -> None:
+        """Parse container data from JSON and determine which containers to process."""
         # Check if this is a multi-container dump file
-        if 'containers' in data and isinstance(data['containers'], list):
-            log_info(f"Found multi-container dump file with {len(data['containers'])} containers")
-            log_info(f"Database: {data.get('database', 'N/A')}")
-            log_info(f"Total items: {data.get('total_items', 0)}")
+        if 'containers' in self.data and isinstance(self.data['containers'], list):
+            log_info(f"Found multi-container dump file with {len(self.data['containers'])} containers")
+            log_info(f"Database: {self.data.get('database', 'N/A')}")
+            log_info(f"Total items: {self.data.get('total_items', 0)}")
 
             # Determine which containers to process
-            if upload_config.containers:
+            if self.upload_config.containers:
                 # User specified specific containers
-                target_containers = [c.strip() for c in upload_config.containers.split(',')]
-                available_containers = [c['name'] for c in data['containers']]
+                target_containers = [c.strip() for c in self.upload_config.containers.split(',')]
+                available_containers = [c['name'] for c in self.data['containers']]
                 missing_containers = [c for c in target_containers if c not in available_containers]
 
                 if missing_containers:
@@ -75,76 +84,81 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
                     log_info(f"Available containers in JSON: {', '.join(available_containers)}")
                     raise Exception(f"Specified containers not found in JSON: {', '.join(missing_containers)}")
 
-                containers_to_process = [c for c in data['containers'] if c['name'] in target_containers]
+                self.containers_to_process = [c for c in self.data['containers'] if c['name'] in target_containers]
                 log_info(f"Processing specified containers: {', '.join(target_containers)}")
             else:
                 # Process all containers in the JSON
-                containers_to_process = data['containers']
+                self.containers_to_process = self.data['containers']
                 log_info("Processing all containers from JSON")
         else:
             # Legacy single-container format support
             log_warning("Detected legacy single-container format, converting to multi-container format")
-            if 'container' in data and 'items' in data:
-                containers_to_process = [{
-                    'name': data['container'],
-                    'total_items': len(data['items']),
-                    'partition_key': data.get('partition_key'),
-                    'items': data['items']
+            if 'container' in self.data and 'items' in self.data:
+                self.containers_to_process = [{
+                    'name': self.data['container'],
+                    'total_items': len(self.data['items']),
+                    'partition_key': self.data.get('partition_key'),
+                    'items': self.data['items']
                 }]
-                log_info(f"Converted legacy format: 1 container with {len(data['items'])} items")
+                log_info(f"Converted legacy format: 1 container with {len(self.data['items'])} items")
             else:
                 raise Exception("Invalid JSON structure. Expected 'containers' array or legacy format.")
 
-        # Initialize CosmosDB client
+    def _initialize_client(self) -> None:
+        """Initialize the CosmosDB client."""
         try:
-            client = CosmosDBClient(db_config)
+            self.client = CosmosDBClient(self.db_config)
         except Exception as e:
             log_error(f"Error initializing CosmosDB client: {e}")
             log_warning("Please check your connection parameters and ensure the database exists.")
             raise
 
-        # Check database existence and create if needed
+    def _check_database_existence(self) -> None:
+        """Check if database exists and create if needed."""
         try:
-            available_containers = client.list_containers()
+            self.available_containers = self.client.list_containers()
         except CosmosHttpResponseError as e:
             if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
-                log_warning(f"Database '{db_config.database}' does not exist or is not accessible.")
-                if not upload_config.force and not upload_config.dry_run:
-                    if Confirm.ask(f"Do you want to create database '{db_config.database}' first?"):
-                        try:
-                            client.client.create_database_if_not_exists(db_config.database)
-                            log_checkmark(f"Database '{db_config.database}' created successfully")
-                            available_containers = []
-                        except Exception as e2:
-                            log_error(f"Error creating database '{db_config.database}': {e2}")
-                            raise
-                    else:
-                        log_warning("Database creation cancelled. Cannot proceed without database.")
-                        raise Exception("Database creation cancelled")
-                else:
-                    # Force mode - try to create database
-                    try:
-                        client.client.create_database_if_not_exists(db_config.database)
-                        log_checkmark(f"Database '{db_config.database}' created successfully")
-                        available_containers = []
-                    except Exception as e2:
-                        log_error(f"Error creating database '{db_config.database}': {e2}")
-                        raise
+                self._handle_database_not_found()
             else:
                 log_error(f"Error listing containers: {e}")
                 raise
 
-        # Display upload summary
-        total_items = _calculate_total_items(containers_to_process)
-        mode = 'Upsert' if upload_config.upsert else 'Create'
+    def _handle_database_not_found(self) -> None:
+        """Handle the case when the database doesn't exist."""
+        log_warning(f"Database '{self.db_config.database}' does not exist or is not accessible.")
+        if not self.upload_config.force and not self.upload_config.dry_run:
+            if Confirm.ask(f"Do you want to create database '{self.db_config.database}' first?"):
+                self._create_database()
+            else:
+                log_warning("Database creation cancelled. Cannot proceed without database.")
+                raise Exception("Database creation cancelled")
+        else:
+            # Force mode - try to create database
+            self._create_database()
+
+    def _create_database(self) -> None:
+        """Create the database."""
+        try:
+            self.client.client.create_database_if_not_exists(self.db_config.database)
+            log_checkmark(f"Database '{self.db_config.database}' created successfully")
+            self.available_containers = []
+        except Exception as e:
+            log_error(f"Error creating database '{self.db_config.database}': {e}")
+            raise
+
+    def _display_upload_summary(self) -> None:
+        """Display the upload summary and container details."""
+        total_items = self._calculate_total_items(self.containers_to_process)
+        mode = 'Upsert' if self.upload_config.upsert else 'Create'
         log_upload_summary(
-            database=db_config.database,
-            container_count=len(containers_to_process),
+            database=self.db_config.database,
+            container_count=len(self.containers_to_process),
             total_items=total_items,
-            batch_size=upload_config.batch_size,
+            batch_size=self.upload_config.batch_size,
             mode=mode,
-            dry_run=upload_config.dry_run,
-            create_containers=upload_config.create_containers
+            dry_run=self.upload_config.dry_run,
+            create_containers=self.upload_config.create_containers
         )
 
         # Show container details table
@@ -154,12 +168,12 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
         table.add_column("Partition Key", style="yellow")
         table.add_column("Status", style="blue")
 
-        for container_data in containers_to_process:
+        for container_data in self.containers_to_process:
             partition_key_info = "N/A"
             if container_data.get("partition_key") and "paths" in container_data["partition_key"]:
                 partition_key_info = str(container_data["partition_key"]["paths"])
 
-            status = "Will create" if container_data["name"] not in available_containers else "Exists"
+            status = "Will create" if container_data["name"] not in self.available_containers else "Exists"
             table.add_row(
                 container_data["name"],
                 str(container_data["total_items"]),
@@ -169,120 +183,137 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
 
         console.print(table)
 
-        # Confirmation prompt (unless force flag is used)
-        if not upload_config.force and not upload_config.dry_run:
+    def _confirm_upload(self) -> bool:
+        """Confirm upload with user unless force flag is used."""
+        if not self.upload_config.force and not self.upload_config.dry_run:
             if not Confirm.ask("Do you want to proceed with the upload?"):
                 log_warning("Upload cancelled.")
-                return  # User cancelled, exit cleanly
+                return False
+        return True
 
-        if upload_config.dry_run:
-            total_items = _calculate_total_items(containers_to_process)
+    def _handle_dry_run(self) -> None:
+        """Handle dry run mode."""
+        if self.upload_config.dry_run:
+            total_items = self._calculate_total_items(self.containers_to_process)
             log_success(
-                f"Dry run completed. Would upload {total_items} items to {len(containers_to_process)} containers"
+                f"Dry run completed. Would upload {total_items} items to {len(self.containers_to_process)} containers"
             )
-            return
 
-        # Process each container
+    def _create_container_if_needed(self, container_name: str, partition_key) -> bool:  # pylint: disable=too-many-return-statements
+        """Create a container if it doesn't exist and creation is requested."""
+        if container_name in self.available_containers:
+            return True
+
+        if not self.upload_config.create_containers:
+            log_error(f"Error: Container '{container_name}' not found!")
+            log_warning("Use --create-containers flag to automatically create missing containers.")
+            return False
+
+        log_warning(f"Container '{container_name}' not found. Creating new container...")
+
+        if not self.upload_config.force:
+            if not Confirm.ask(f"Do you want to create container '{container_name}'?"):
+                log_warning(f"Skipping container '{container_name}'")
+                return False
+
+        try:
+            # Create the container with partition key if available
+            if partition_key and 'paths' in partition_key:
+                log_info(f"Creating container with partition key: {partition_key['paths']}")
+                try:
+                    pk = self._create_partition_key(partition_key['paths'])
+                    self.client.database.create_container(id=container_name, partition_key=pk)
+                    log_checkmark(f"Successfully created container '{container_name}' with partition key")
+                    return True
+                except Exception as pk_error:
+                    log_warning(f"Warning: Failed to create container with partition key: {pk_error}")
+                    log_warning("Attempting to create container with simple partition key...")
+
+                    try:
+                        simple_pk = PartitionKey(path="pk")
+                        self.client.database.create_container(id=container_name, partition_key=simple_pk)
+                        log_checkmark(
+                            f"Successfully created container '{container_name}'"
+                            " with simple partition key 'pk'"
+                        )
+                        log_warning(
+                            "Note: Container created with partition key 'pk'. "
+                            "You may need to add this field to your documents."
+                        )
+                        return True
+                    except Exception as simple_error:
+                        log_error(f"Error: Cannot create container '{container_name}': {simple_error}")
+                        return False
+            else:
+                log_info("Creating container with default partition key")
+                try:
+                    self.client.database.create_container(
+                        id=container_name,
+                        partition_key=PartitionKey(path="/id")
+                    )
+                    log_checkmark(f"Successfully created container '{container_name}'")
+                    return True
+                except Exception as e:
+                    log_error(f"Error creating container '{container_name}': {e}")
+                    return False
+        except Exception as e:
+            log_error(f"Error creating container '{container_name}': {e}")
+            return False
+
+    def _upload_container_items(self, container_data: dict) -> tuple:
+        """Upload items to a specific container and return success status and count."""
+        container_name = container_data["name"]
+        items = container_data.get("items", [])
+        partition_key = container_data.get("partition_key")
+
+        log_panel(f"Processing container: {container_name}", style="blue")
+
+        # Check if container exists or create if needed
+        if not self._create_container_if_needed(container_name, partition_key):
+            return False, 0
+
+        # Upload items to the container
+        if items:
+            log_info(f"Uploading {len(items)} items to container '{container_name}'...")
+
+            try:
+                if self.upload_config.upsert:
+                    uploaded_items = self.client.upsert_items_batch(
+                        container_name, items, self.upload_config.batch_size
+                    )
+                else:
+                    uploaded_items = self.client.create_items_batch(
+                        container_name, items, self.upload_config.batch_size
+                    )
+
+                log_checkmark(f"Successfully uploaded {len(uploaded_items)} items to container '{container_name}'")
+                return True, len(uploaded_items)
+
+            except Exception as e:
+                log_error(f"Error uploading items to container '{container_name}': {e}")
+                return False, 0
+        else:
+            log_warning(f"No items to upload for container '{container_name}'")
+            return True, 0
+
+    def _process_all_containers(self) -> tuple:
+        """Process all containers and return results."""
         total_uploaded = 0
         successful_containers = []
         failed_containers = []
 
-        for container_data in containers_to_process:
-            container_name = container_data["name"]
-            items = container_data.get("items", [])
-            partition_key = container_data.get("partition_key")
-
-            log_panel(f"Processing container: {container_name}", style="blue")
-
-            # Check if container exists
-            container_exists = container_name in available_containers
-
-            if not container_exists:
-                if upload_config.create_containers:
-                    log_warning(f"Container '{container_name}' not found. Creating new container...")
-
-                    if not upload_config.force:
-                        if not Confirm.ask(f"Do you want to create container '{container_name}'?"):
-                            log_warning(f"Skipping container '{container_name}'")
-                            failed_containers.append(container_name)
-                            continue
-
-                    try:
-                        # Create the container with partition key if available
-                        if partition_key and 'paths' in partition_key:
-                            log_info(f"Creating container with partition key: {partition_key['paths']}")
-                            try:
-                                pk = _create_partition_key(partition_key['paths'])
-
-                                client.database.create_container(id=container_name, partition_key=pk)
-                                log_checkmark(f"Successfully created container '{container_name}' with partition key")
-                                container_exists = True
-                            except Exception as pk_error:
-                                log_warning(f"Warning: Failed to create container with partition key: {pk_error}")
-                                log_warning("Attempting to create container with simple partition key...")
-
-                                try:
-                                    simple_pk = PartitionKey(path="pk")
-                                    client.database.create_container(id=container_name, partition_key=simple_pk)
-                                    log_checkmark(
-                                        f"Successfully created container '{container_name}'"
-                                        " with simple partition key 'pk'"
-                                    )
-                                    log_warning(
-                                        "Note: Container created with partition key 'pk'. "
-                                        "You may need to add this field to your documents."
-                                    )
-                                    container_exists = True
-                                except Exception as simple_error:
-                                    log_error(f"Error: Cannot create container '{container_name}': {simple_error}")
-                                    failed_containers.append(container_name)
-                                    continue
-                        else:
-                            log_info("Creating container with default partition key")
-                            try:
-                                client.database.create_container(
-                                    id=container_name,
-                                    partition_key=PartitionKey(path="/id")
-                                )
-                                log_checkmark(f"Successfully created container '{container_name}'")
-                                container_exists = True
-                            except Exception as e:
-                                log_error(f"Error creating container '{container_name}': {e}")
-                                failed_containers.append(container_name)
-                                continue
-                    except Exception as e:
-                        log_error(f"Error creating container '{container_name}': {e}")
-                        failed_containers.append(container_name)
-                        continue
-                else:
-                    log_error(f"Error: Container '{container_name}' not found!")
-                    log_warning("Use --create-containers flag to automatically create missing containers.")
-                    failed_containers.append(container_name)
-                    continue
-
-            # Upload items to the container
-            if items:
-                log_info(f"Uploading {len(items)} items to container '{container_name}'...")
-
-                try:
-                    if upload_config.upsert:
-                        uploaded_items = client.upsert_items_batch(container_name, items, upload_config.batch_size)
-                    else:
-                        uploaded_items = client.create_items_batch(container_name, items, upload_config.batch_size)
-
-                    log_checkmark(f"Successfully uploaded {len(uploaded_items)} items to container '{container_name}'")
-                    total_uploaded += len(uploaded_items)
-                    successful_containers.append(container_name)
-
-                except Exception as e:
-                    log_error(f"Error uploading items to container '{container_name}': {e}")
-                    failed_containers.append(container_name)
-                    continue
+        for container_data in self.containers_to_process:
+            success, count = self._upload_container_items(container_data)
+            if success:
+                successful_containers.append(container_data["name"])
+                total_uploaded += count
             else:
-                log_warning(f"No items to upload for container '{container_name}'")
-                successful_containers.append(container_name)
+                failed_containers.append(container_data["name"])
 
-        # Display final results
+        return total_uploaded, successful_containers, failed_containers
+
+    def _display_results(self, total_uploaded: int, successful_containers: list, failed_containers: list) -> None:
+        """Display the final upload results."""
         log_results_summary(
             total_uploaded=total_uploaded,
             successful_count=len(successful_containers),
@@ -290,11 +321,11 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
         )
 
         if successful_containers:
-            successful_list = _format_container_list(successful_containers)
+            successful_list = self._format_container_list(successful_containers)
             log_success(f"Successfully processed containers: {successful_list}")
 
         if failed_containers:
-            failed_list = _format_container_list(failed_containers)
+            failed_list = self._format_container_list(failed_containers)
             log_error(f"Failed containers: {failed_list}")
             log_warning("You may need to check the errors above and manually create these containers.")
 
@@ -307,7 +338,37 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
         else:
             log_success("All containers processed successfully!")
 
-    except Exception as e:
-        log_error(f"Error: {e}")
-        log_warning("Please check your CosmosDB connection parameters and container names.")
-        raise
+    def upload_entries(self) -> None:
+        """Main method to upload entries to CosmosDB containers."""
+        # Validate input file
+        self._validate_input_file()
+
+        # Load JSON data
+        self._load_json_data()
+
+        # Parse container data
+        self._parse_container_data()
+
+        # Initialize client
+        self._initialize_client()
+
+        # Check database existence
+        self._check_database_existence()
+
+        # Display upload summary
+        self._display_upload_summary()
+
+        # Confirm upload
+        if not self._confirm_upload():
+            return
+
+        # Handle dry run
+        self._handle_dry_run()
+        if self.upload_config.dry_run:
+            return
+
+        # Process all containers
+        total_uploaded, successful_containers, failed_containers = self._process_all_containers()
+
+        # Display results
+        self._display_results(total_uploaded, successful_containers, failed_containers)
