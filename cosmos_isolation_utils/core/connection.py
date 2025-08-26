@@ -8,7 +8,7 @@ from rich.prompt import Confirm
 from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, ConnectionConfig
 from .logging_utils import (
-    log_info, log_success, log_error, log_warning, log_step, log_checkmark
+    log_info, log_success, log_error, log_warning, log_step, log_checkmark, log_with_color
 )
 
 
@@ -99,7 +99,7 @@ class ConnectionTester:  # pylint: disable=too-few-public-methods
         """Display the list of available containers."""
         log_step(3, "Listing containers...")
         if containers:
-            log_info(f"\n[bold]Available containers ({len(containers)}):[/bold]")
+            log_with_color(f"\nAvailable containers ({len(containers)}):", "bold cyan")
             for i, container in enumerate(containers, 1):
                 log_info(f"  {i}. {container}")
         else:

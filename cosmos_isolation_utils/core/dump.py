@@ -9,7 +9,7 @@ from rich.table import Table
 from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, DumpConfig
 from .logging_utils import (
-    log_info, log_success, log_error, log_warning, log_panel, console
+    log_info, log_success, log_error, log_warning, log_panel, console, log_with_color
 )
 
 
@@ -132,7 +132,7 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
             # Show sample of exported data
             if items:
                 sample_item = items[0]
-                log_info(f"[bold]Sample item structure for {container_name}:[/bold]")
+                log_with_color(f"Sample item structure for {container_name}:", "bold cyan")
                 log_info(f"Keys: {list(sample_item.keys())}")
                 if 'id' in sample_item:
                     log_info(f"ID: {sample_item['id']}")
