@@ -32,11 +32,11 @@ class CosmosDBClient:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         log_info("  Creating CosmosClient...")
-        self.client = CosmosClient(db_config.endpoint, db_config.key)
+        self._client = CosmosClient(db_config.endpoint, db_config.key)
         log_checkmark("  CosmosClient created")
 
         log_info("  Getting database client...")
-        self.database = self.client.get_database_client(db_config.database)
+        self._database = self._client.get_database_client(db_config.database)
         log_checkmark("  Database client obtained")
 
         log_checkmark("CosmosDB client initialization completed")
@@ -53,7 +53,7 @@ class CosmosDBClient:
     def get_container_client(self, container_name: str):
         """Get a container client for the specified container."""
         try:
-            return self.database.get_container_client(container_name)
+            return self._database.get_container_client(container_name)
         except CosmosHttpResponseError as e:
             log_error(f"Error accessing container '{container_name}': {e}")
             raise
@@ -61,9 +61,63 @@ class CosmosDBClient:
     def create_database_if_not_exists(self, database_name: str):
         """Create database if it doesn't exist."""
         try:
-            return self.client.create_database_if_not_exists(database_name)
+            return self._client.create_database_if_not_exists(database_name)
         except Exception as e:
             log_error(f"Error creating database '{database_name}': {e}")
+            raise
+
+    def delete_database(self, database_name: str) -> None:
+        """Delete a database."""
+        try:
+            self._client.delete_database(database_name)
+            log_success(f"Database '{database_name}' deleted successfully")
+        except Exception as e:
+            log_error(f"Error deleting database '{database_name}': {e}")
+            raise
+
+    def list_databases(self) -> List[str]:
+        """List all databases in the CosmosDB account."""
+        try:
+            databases = list(self._client.list_databases())
+            return [db['id'] for db in databases]
+        except Exception as e:
+            log_error(f"Error listing databases: {e}")
+            raise
+
+    def get_database_info(self, database_name: str) -> Dict[str, Any]:
+        """
+        Get database properties and container list for a specific database.
+        
+        Args:
+            database_name: Name of the database to get info for
+            
+        Returns:
+            Dict containing database properties and container list
+            
+        Raises:
+            Exception: If database access fails
+        """
+        try:
+            database = self._client.get_database_client(database_name)
+            properties = database.read()
+            containers = list(database.list_containers())
+
+            return {
+                "properties": properties,
+                "containers": containers,
+                "container_count": len(containers)
+            }
+        except Exception as e:
+            log_error(f"Error getting database info for '{database_name}': {e}")
+            raise
+
+    def create_container(self, container_name: str, partition_key) -> None:
+        """Create a container in the current database."""
+        try:
+            self._database.create_container(id=container_name, partition_key=partition_key)
+            log_success(f"Container '{container_name}' created successfully")
+        except Exception as e:
+            log_error(f"Error creating container '{container_name}': {e}")
             raise
 
     def get_container_properties(self, container_name: str) -> Dict[str, Any]:
@@ -77,7 +131,7 @@ class CosmosDBClient:
 
     def list_containers(self) -> List[str]:
         """List all containers in the database."""
-        containers = list(self.database.list_containers())
+        containers = list(self._database.list_containers())
         return [container['id'] for container in containers]
 
     def query_items(self, container_name: str, query: str = "SELECT * FROM c",
@@ -91,9 +145,7 @@ class CosmosDBClient:
                     query=query, parameters=parameters, enable_cross_partition_query=True
                 )
             else:
-                items = container.query_items(
-                    query=query, enable_cross_partition_query=True
-                )
+                items = container.query_items(query=query, enable_cross_partition_query=True)
 
             for item in items:
                 yield self._filter_internal_attributes(item)
@@ -109,9 +161,7 @@ class CosmosDBClient:
         try:
             # First, get the total count
             count_query = "SELECT VALUE COUNT(1) FROM c"
-            count_result = list(container.query_items(
-                query=count_query, enable_cross_partition_query=True
-            ))
+            count_result = list(container.query_items(query=count_query, enable_cross_partition_query=True))
             total_count = count_result[0] if count_result else 0
 
             if total_count == 0:
@@ -127,15 +177,10 @@ class CosmosDBClient:
                 TextColumn("[progress.description]{task.description}"),
                 console=console
             ) as progress:
-                task = progress.add_task(
-                    f"Fetching items from {container_name}...", 
-                    total=total_count
-                )
+                task = progress.add_task(f"Fetching items from {container_name}...", total=total_count)
 
                 query = "SELECT * FROM c"
-                items = container.query_items(
-                    query=query, enable_cross_partition_query=True
-                )
+                items = container.query_items(query=query, enable_cross_partition_query=True)
 
                 for item in items:
                     filtered_item = self._filter_internal_attributes(item)
@@ -179,9 +224,7 @@ class CosmosDBClient:
             TextColumn("[progress.description]{task.description}"),
             console=console
         ) as progress:
-            task = progress.add_task(
-                f"Creating items in {container_name}...", total=len(items)
-            )
+            task = progress.add_task(f"Creating items in {container_name}...", total=len(items))
 
             for i in range(0, len(items), batch_size):
                 batch = items[i:i + batch_size]
@@ -209,9 +252,7 @@ class CosmosDBClient:
             TextColumn("[progress.description]{task.description}"),
             console=console
         ) as progress:
-            task = progress.add_task(
-                f"Upserting items in {container_name}...", total=len(items)
-            )
+            task = progress.add_task(f"Upserting items in {container_name}...", total=len(items))
 
             for i in range(0, len(items), batch_size):
                 batch = items[i:i + batch_size]
@@ -236,9 +277,7 @@ class CosmosDBClient:
 
             # Get item count
             count_query = "SELECT VALUE COUNT(1) FROM c"
-            count_result = list(container.query_items(
-                query=count_query, enable_cross_partition_query=True
-            ))
+            count_result = list(container.query_items(query=count_query, enable_cross_partition_query=True))
             item_count = count_result[0] if count_result else 0
 
             stats = {

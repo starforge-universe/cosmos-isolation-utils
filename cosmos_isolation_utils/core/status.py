@@ -16,10 +16,9 @@ from .logging_utils import (
 class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
     """Analyzer class for container status and statistics."""
 
-    def __init__(self, db_config: DatabaseConfig, status_config: StatusConfig):
-        """Initialize the analyzer with database and status configuration."""
+    def __init__(self, db_config: DatabaseConfig):
+        """Initialize the analyzer with database configuration."""
         self.db_config = db_config
-        self.status_config = status_config
         self.client = None
         self.container_stats = []
 
@@ -96,9 +95,9 @@ class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
 
         return table
 
-    def _display_detailed_information(self) -> None:
+    def _display_detailed_information(self, status_config: StatusConfig) -> None:
         """Display detailed container information if requested."""
-        if not self.status_config.detailed:
+        if not status_config.detailed:
             return
 
         log_info("\n" + "="*80)
@@ -179,7 +178,7 @@ class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
         )
         log_with_color(f"• Upload specific containers: {upload_specific_cmd}", "cyan")
 
-    def analyze(self) -> None:
+    def analyze(self, status_config: StatusConfig) -> None:
         """Main method to analyze and display container status."""
         # Initialize and gather data
         self._initialize_client()
@@ -198,7 +197,7 @@ class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
         console.print(status_table)
 
         # Display detailed information if requested
-        self._display_detailed_information()
+        self._display_detailed_information(status_config)
 
         # Display recommendations and commands
         self._display_recommendations()

@@ -73,8 +73,8 @@ def test(ctx, create_database: bool, force: bool):
         )
 
         # Create connection tester instance and run test
-        tester = ConnectionTester(db_config, connection_config)
-        tester.test_connection()
+        tester = ConnectionTester(db_config)
+        tester.test_connection(connection_config)
     except Exception as e:
         log_error(f"Connection test failed: {e}")
         sys.exit(1)
@@ -99,8 +99,8 @@ def status(ctx, detailed: bool):
         )
 
         # Create analyzer instance and run analysis
-        analyzer = ContainerStatusAnalyzer(db_config, status_config)
-        analyzer.analyze()
+        analyzer = ContainerStatusAnalyzer(db_config)
+        analyzer.analyze(status_config)
     except Exception as e:
         log_error(f"Failed to get container status: {e}")
         sys.exit(1)
@@ -138,8 +138,8 @@ def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=
         )
 
         # Create container dumper instance and run dump
-        dumper = ContainerDumper(db_config, dump_config)
-        dumper.dump_containers()
+        dumper = ContainerDumper(db_config)
+        dumper.dump_containers(dump_config)
     except Exception as e:
         log_error(f"Failed to dump containers: {e}")
         sys.exit(1)
@@ -183,8 +183,8 @@ def upload(ctx, input_file: str, batch_size: int, upsert: bool, dry_run: bool,  
         )
 
         # Create container uploader instance and run upload
-        uploader = ContainerUploader(db_config, upload_config)
-        uploader.upload_entries()
+        uploader = ContainerUploader(db_config)
+        uploader.upload_entries(upload_config)
     except Exception as e:
         log_error(f"Failed to upload entries: {e}")
         sys.exit(1)
@@ -203,7 +203,7 @@ def delete_db(ctx, list_databases: bool, force: bool):
         db_config = DatabaseConfig(
             endpoint=ctx.obj['endpoint'],
             key=ctx.obj['key'],
-            database="",  # Not used for delete operations
+            database=ctx.obj['database'],  # Use the database name from CLI context
             allow_insecure=ctx.obj['allow_insecure']
         )
         delete_config = DeleteConfig(

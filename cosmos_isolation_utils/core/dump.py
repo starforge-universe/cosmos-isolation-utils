@@ -16,10 +16,9 @@ from .logging_utils import (
 class ContainerDumper:  # pylint: disable=too-few-public-methods
     """Dumper class for CosmosDB container operations."""
 
-    def __init__(self, db_config: DatabaseConfig, dump_config: DumpConfig):
-        """Initialize the container dumper with database and dump configuration."""
+    def __init__(self, db_config: DatabaseConfig):
+        """Initialize the container dumper with database configuration."""
         self.db_config = db_config
-        self.dump_config = dump_config
         self.client = None
         self.output_data = None
 
@@ -39,9 +38,9 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
 
         console.print(table)
 
-    def _validate_containers(self) -> list:
+    def _validate_containers(self, dump_config: DumpConfig) -> list:
         """Validate and determine which containers to dump."""
-        if not self.dump_config.containers:
+        if not dump_config.containers:
             log_error("Error: Please specify containers to dump using --containers option")
             log_info("Use --containers all to dump all containers")
             log_info(
@@ -52,11 +51,11 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
 
         available_containers = self.client.list_containers()
 
-        if self.dump_config.containers.lower() == 'all':
+        if dump_config.containers.lower() == 'all':
             containers_to_dump = available_containers
             log_info(f"Dumping all {len(containers_to_dump)} containers")
         else:
-            containers_to_dump = [c.strip() for c in self.dump_config.containers.split(',')]
+            containers_to_dump = [c.strip() for c in dump_config.containers.split(',')]
             # Validate that all specified containers exist
             missing_containers = [
                 c for c in containers_to_dump if c not in available_containers
@@ -68,13 +67,13 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
 
         return containers_to_dump
 
-    def _prepare_output_structure(self, containers_to_dump: list) -> None:
+    def _prepare_output_structure(self, containers_to_dump: list, dump_config: DumpConfig) -> None:
         """Prepare the output data structure for multiple containers."""
         self.output_data = {
             "database": self.db_config.database,
             "exported_at": (
-                str(Path(self.dump_config.output_dir).stat().st_mtime)
-                if Path(self.dump_config.output_dir).exists()
+                str(Path(dump_config.output_dir).stat().st_mtime)
+                if Path(dump_config.output_dir).exists()
                 else "N/A"
             ),
             "total_containers": len(containers_to_dump),
@@ -167,20 +166,20 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
             log_error("Error: No containers were successfully processed!")
             raise Exception("No containers were successfully processed")
 
-    def _ensure_output_directory(self) -> None:
+    def _ensure_output_directory(self, dump_config: DumpConfig) -> None:
         """Ensure the output directory exists."""
-        output_path = Path(self.dump_config.output_dir)
+        output_path = Path(dump_config.output_dir)
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             log_error(f"Error creating output directory: {e}")
             raise
 
-    def _write_output_file(self) -> None:
+    def _write_output_file(self, dump_config: DumpConfig) -> None:
         """Write the output data to JSON file."""
         try:
-            with open(self.dump_config.output_dir, 'w', encoding='utf-8') as f:
-                if self.dump_config.pretty:
+            with open(dump_config.output_dir, 'w', encoding='utf-8') as f:
+                if dump_config.pretty:
                     json.dump(self.output_data, f, indent=2, ensure_ascii=False, default=str)
                 else:
                     json.dump(self.output_data, f, ensure_ascii=False, default=str)
@@ -188,12 +187,12 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
             log_error(f"Error writing to output file: {e}")
             raise
 
-    def _display_export_summary(self, failed_containers: list) -> None:
+    def _display_export_summary(self, failed_containers: list, dump_config: DumpConfig) -> None:
         """Display the final export summary."""
         log_panel("[bold green]Export Summary[/bold green]", style="green")
         log_success(
             f"Successfully exported {self.output_data['total_items']} items from "
-            f"{len(self.output_data['containers'])} containers to {self.dump_config.output_dir}"
+            f"{len(self.output_data['containers'])} containers to {dump_config.output_dir}"
         )
 
         if failed_containers:
@@ -227,21 +226,21 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
                 f"Export completed with warnings. {len(failed_containers)} containers failed."
             )
 
-    def dump_containers(self) -> None:
+    def dump_containers(self, dump_config: DumpConfig) -> None:
         """Main method to dump containers to JSON file."""
         # Initialize client
         self._initialize_client()
 
         # Handle list containers only case
-        if self.dump_config.list_containers:
+        if dump_config.list_containers:
             self._list_containers_only()
             return
 
         # Validate and determine containers to dump
-        containers_to_dump = self._validate_containers()
+        containers_to_dump = self._validate_containers(dump_config)
 
         # Prepare output structure
-        self._prepare_output_structure(containers_to_dump)
+        self._prepare_output_structure(containers_to_dump, dump_config)
 
         # Process all containers
         failed_containers = self._process_all_containers(containers_to_dump)
@@ -250,10 +249,10 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
         self._validate_processing_results()
 
         # Ensure output directory exists
-        self._ensure_output_directory()
+        self._ensure_output_directory(dump_config)
 
         # Write output file
-        self._write_output_file()
+        self._write_output_file(dump_config)
 
         # Display summary
-        self._display_export_summary(failed_containers)
+        self._display_export_summary(failed_containers, dump_config)

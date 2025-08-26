@@ -20,10 +20,9 @@ from .config import DatabaseConfig, UploadConfig
 class ContainerUploader:  # pylint: disable=too-few-public-methods
     """Uploader class for CosmosDB container operations."""
 
-    def __init__(self, db_config: DatabaseConfig, upload_config: UploadConfig):
-        """Initialize the container uploader with database and upload configuration."""
+    def __init__(self, db_config: DatabaseConfig):
+        """Initialize the container uploader with database configuration."""
         self.db_config = db_config
-        self.upload_config = upload_config
         self.client = None
         self.data = None
         self.containers_to_process = []
@@ -48,23 +47,23 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             return PartitionKey(path=paths[0])
         return PartitionKey(paths=paths)
 
-    def _validate_input_file(self) -> None:
+    def _validate_input_file(self, upload_config: UploadConfig) -> None:
         """Validate that the input file exists and is readable."""
-        input_path = Path(self.upload_config.input_file)
+        input_path = Path(upload_config.input_file)
         if not input_path.exists():
-            log_error(f"Error: Input file '{self.upload_config.input_file}' not found!")
-            raise Exception(f"Input file '{self.upload_config.input_file}' not found")
+            log_error(f"Error: Input file '{upload_config.input_file}' not found!")
+            raise Exception(f"Input file '{upload_config.input_file}' not found")
 
-    def _load_json_data(self) -> None:
+    def _load_json_data(self, upload_config: UploadConfig) -> None:
         """Load and parse the JSON data from the input file."""
         try:
-            with open(self.upload_config.input_file, 'r', encoding='utf-8') as f:
+            with open(upload_config.input_file, 'r', encoding='utf-8') as f:
                 self.data = json.load(f)
         except json.JSONDecodeError as e:
             log_error(f"Error: Invalid JSON file: {e}")
-            raise Exception(f"Invalid JSON file: {e}")
+            raise Exception(f"Invalid JSON file: {e}") from e
 
-    def _parse_container_data(self) -> None:
+    def _parse_container_data(self, upload_config: UploadConfig) -> None:
         """Parse container data from JSON and determine which containers to process."""
         # Check if this is a multi-container dump file
         if 'containers' in self.data and isinstance(self.data['containers'], list):
@@ -73,9 +72,9 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             log_info(f"Total items: {self.data.get('total_items', 0)}")
 
             # Determine which containers to process
-            if self.upload_config.containers:
+            if upload_config.containers:
                 # User specified specific containers
-                target_containers = [c.strip() for c in self.upload_config.containers.split(',')]
+                target_containers = [c.strip() for c in upload_config.containers.split(',')]
                 available_containers = [c['name'] for c in self.data['containers']]
                 missing_containers = [c for c in target_containers if c not in available_containers]
 
@@ -113,21 +112,21 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             log_warning("Please check your connection parameters and ensure the database exists.")
             raise
 
-    def _check_database_existence(self) -> None:
+    def _check_database_existence(self, upload_config: UploadConfig) -> None:
         """Check if database exists and create if needed."""
         try:
             self.available_containers = self.client.list_containers()
         except CosmosHttpResponseError as e:
             if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
-                self._handle_database_not_found()
+                self._handle_database_not_found(upload_config)
             else:
                 log_error(f"Error listing containers: {e}")
                 raise
 
-    def _handle_database_not_found(self) -> None:
+    def _handle_database_not_found(self, upload_config: UploadConfig) -> None:
         """Handle the case when the database doesn't exist."""
         log_warning(f"Database '{self.db_config.database}' does not exist or is not accessible.")
-        if not self.upload_config.force and not self.upload_config.dry_run:
+        if not upload_config.force and not upload_config.dry_run:
             if Confirm.ask(f"Do you want to create database '{self.db_config.database}' first?"):
                 self._create_database()
             else:
@@ -140,25 +139,25 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
     def _create_database(self) -> None:
         """Create the database."""
         try:
-            self.client.client.create_database_if_not_exists(self.db_config.database)
+            self.client.create_database_if_not_exists(self.db_config.database)
             log_checkmark(f"Database '{self.db_config.database}' created successfully")
             self.available_containers = []
         except Exception as e:
             log_error(f"Error creating database '{self.db_config.database}': {e}")
             raise
 
-    def _display_upload_summary(self) -> None:
+    def _display_upload_summary(self, upload_config: UploadConfig) -> None:
         """Display the upload summary and container details."""
         total_items = self._calculate_total_items(self.containers_to_process)
-        mode = 'Upsert' if self.upload_config.upsert else 'Create'
+        mode = 'Upsert' if upload_config.upsert else 'Create'
         log_upload_summary(
             database=self.db_config.database,
             container_count=len(self.containers_to_process),
             total_items=total_items,
-            batch_size=self.upload_config.batch_size,
+            batch_size=upload_config.batch_size,
             mode=mode,
-            dry_run=self.upload_config.dry_run,
-            create_containers=self.upload_config.create_containers
+            dry_run=upload_config.dry_run,
+            create_containers=upload_config.create_containers
         )
 
         # Show container details table
@@ -183,35 +182,35 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
 
         console.print(table)
 
-    def _confirm_upload(self) -> bool:
+    def _confirm_upload(self, upload_config: UploadConfig) -> bool:
         """Confirm upload with user unless force flag is used."""
-        if not self.upload_config.force and not self.upload_config.dry_run:
+        if not upload_config.force and not upload_config.dry_run:
             if not Confirm.ask("Do you want to proceed with the upload?"):
                 log_warning("Upload cancelled.")
                 return False
         return True
 
-    def _handle_dry_run(self) -> None:
+    def _handle_dry_run(self, upload_config: UploadConfig) -> None:
         """Handle dry run mode."""
-        if self.upload_config.dry_run:
+        if upload_config.dry_run:
             total_items = self._calculate_total_items(self.containers_to_process)
             log_success(
                 f"Dry run completed. Would upload {total_items} items to {len(self.containers_to_process)} containers"
             )
 
-    def _create_container_if_needed(self, container_name: str, partition_key) -> bool:  # pylint: disable=too-many-return-statements
+    def _create_container_if_needed(self, container_name: str, partition_key, upload_config: UploadConfig) -> bool:  # pylint: disable=too-many-return-statements
         """Create a container if it doesn't exist and creation is requested."""
         if container_name in self.available_containers:
             return True
 
-        if not self.upload_config.create_containers:
+        if not upload_config.create_containers:
             log_error(f"Error: Container '{container_name}' not found!")
             log_warning("Use --create-containers flag to automatically create missing containers.")
             return False
 
         log_warning(f"Container '{container_name}' not found. Creating new container...")
 
-        if not self.upload_config.force:
+        if not upload_config.force:
             if not Confirm.ask(f"Do you want to create container '{container_name}'?"):
                 log_warning(f"Skipping container '{container_name}'")
                 return False
@@ -222,7 +221,7 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
                 log_info(f"Creating container with partition key: {partition_key['paths']}")
                 try:
                     pk = self._create_partition_key(partition_key['paths'])
-                    self.client.database.create_container(id=container_name, partition_key=pk)
+                    self.client.create_container(container_name, pk)
                     log_checkmark(f"Successfully created container '{container_name}' with partition key")
                     return True
                 except Exception as pk_error:
@@ -231,7 +230,7 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
 
                     try:
                         simple_pk = PartitionKey(path="pk")
-                        self.client.database.create_container(id=container_name, partition_key=simple_pk)
+                        self.client.create_container(container_name, simple_pk)
                         log_checkmark(
                             f"Successfully created container '{container_name}'"
                             " with simple partition key 'pk'"
@@ -247,9 +246,9 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             else:
                 log_info("Creating container with default partition key")
                 try:
-                    self.client.database.create_container(
-                        id=container_name,
-                        partition_key=PartitionKey(path="/id")
+                    self.client.create_container(
+                        container_name,
+                        PartitionKey(path="/id")
                     )
                     log_checkmark(f"Successfully created container '{container_name}'")
                     return True
@@ -260,7 +259,7 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             log_error(f"Error creating container '{container_name}': {e}")
             return False
 
-    def _upload_container_items(self, container_data: dict) -> tuple:
+    def _upload_container_items(self, container_data: dict, upload_config: UploadConfig) -> tuple:
         """Upload items to a specific container and return success status and count."""
         container_name = container_data["name"]
         items = container_data.get("items", [])
@@ -269,7 +268,7 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
         log_panel(f"Processing container: {container_name}", style="blue")
 
         # Check if container exists or create if needed
-        if not self._create_container_if_needed(container_name, partition_key):
+        if not self._create_container_if_needed(container_name, partition_key, upload_config):
             return False, 0
 
         # Upload items to the container
@@ -277,13 +276,13 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             log_info(f"Uploading {len(items)} items to container '{container_name}'...")
 
             try:
-                if self.upload_config.upsert:
+                if upload_config.upsert:
                     uploaded_items = self.client.upsert_items_batch(
-                        container_name, items, self.upload_config.batch_size
+                        container_name, items, upload_config.batch_size
                     )
                 else:
                     uploaded_items = self.client.create_items_batch(
-                        container_name, items, self.upload_config.batch_size
+                        container_name, items, upload_config.batch_size
                     )
 
                 log_checkmark(f"Successfully uploaded {len(uploaded_items)} items to container '{container_name}'")
@@ -296,14 +295,14 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             log_warning(f"No items to upload for container '{container_name}'")
             return True, 0
 
-    def _process_all_containers(self) -> tuple:
+    def _process_all_containers(self, upload_config: UploadConfig) -> tuple:
         """Process all containers and return results."""
         total_uploaded = 0
         successful_containers = []
         failed_containers = []
 
         for container_data in self.containers_to_process:
-            success, count = self._upload_container_items(container_data)
+            success, count = self._upload_container_items(container_data, upload_config)
             if success:
                 successful_containers.append(container_data["name"])
                 total_uploaded += count
@@ -333,42 +332,42 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
         if not successful_containers:
             log_error("Error: No containers were successfully processed!")
             raise Exception("No containers were successfully processed")
-        elif failed_containers:
+        if failed_containers:
             log_warning(f"Upload completed with warnings. {len(failed_containers)} containers failed.")
         else:
             log_success("All containers processed successfully!")
 
-    def upload_entries(self) -> None:
+    def upload_entries(self, upload_config: UploadConfig) -> None:
         """Main method to upload entries to CosmosDB containers."""
         # Validate input file
-        self._validate_input_file()
+        self._validate_input_file(upload_config)
 
         # Load JSON data
-        self._load_json_data()
+        self._load_json_data(upload_config)
 
         # Parse container data
-        self._parse_container_data()
+        self._parse_container_data(upload_config)
 
         # Initialize client
         self._initialize_client()
 
         # Check database existence
-        self._check_database_existence()
+        self._check_database_existence(upload_config)
 
         # Display upload summary
-        self._display_upload_summary()
+        self._display_upload_summary(upload_config)
 
         # Confirm upload
-        if not self._confirm_upload():
+        if not self._confirm_upload(upload_config):
             return
 
         # Handle dry run
-        self._handle_dry_run()
-        if self.upload_config.dry_run:
+        self._handle_dry_run(upload_config)
+        if upload_config.dry_run:
             return
 
         # Process all containers
-        total_uploaded, successful_containers, failed_containers = self._process_all_containers()
+        total_uploaded, successful_containers, failed_containers = self._process_all_containers(upload_config)
 
         # Display results
         self._display_results(total_uploaded, successful_containers, failed_containers)
