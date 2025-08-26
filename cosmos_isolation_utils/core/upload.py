@@ -6,18 +6,15 @@ import json
 from pathlib import Path
 from azure.cosmos import PartitionKey
 from azure.cosmos.exceptions import CosmosHttpResponseError
-from rich.console import Console
 from rich.table import Table
 from rich.prompt import Confirm
 
 from .cosmos_client import CosmosDBClient
 from .logging_utils import (
     log_info, log_success, log_warning, log_error, log_panel,
-    log_checkmark, log_upload_summary, log_results_summary
+    log_checkmark, log_upload_summary, log_results_summary, console
 )
 from .config import DatabaseConfig, UploadConfig
-
-console = Console()
 
 
 def _calculate_total_items(containers_to_process):
@@ -74,9 +71,8 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
                 missing_containers = [c for c in target_containers if c not in available_containers]
 
                 if missing_containers:
-                    console.print(
-                        f"[red]Error: Specified containers not found in JSON: {', '.join(missing_containers)}[/red]")
-                    console.print(f"Available containers in JSON: {', '.join(available_containers)}")
+                    log_error(f"Error: Specified containers not found in JSON: {', '.join(missing_containers)}")
+                    log_info(f"Available containers in JSON: {', '.join(available_containers)}")
                     raise Exception(f"Specified containers not found in JSON: {', '.join(missing_containers)}")
 
                 containers_to_process = [c for c in data['containers'] if c['name'] in target_containers]
@@ -87,8 +83,7 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
                 log_info("Processing all containers from JSON")
         else:
             # Legacy single-container format support
-            console.print(
-                "[yellow]Detected legacy single-container format, converting to multi-container format[/yellow]")
+            log_warning("Detected legacy single-container format, converting to multi-container format")
             if 'container' in data and 'items' in data:
                 containers_to_process = [{
                     'name': data['container'],
@@ -136,7 +131,7 @@ def upload_entries(db_config: DatabaseConfig, upload_config: UploadConfig):
                         log_error(f"Error creating database '{db_config.database}': {e2}")
                         raise
             else:
-                console.print(f"[red]Error listing containers: {e}[/red]")
+                log_error(f"Error listing containers: {e}")
                 raise
 
         # Display upload summary

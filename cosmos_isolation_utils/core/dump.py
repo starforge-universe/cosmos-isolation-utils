@@ -4,14 +4,13 @@ Core container dumping functionality for CosmosDB.
 
 import json
 from pathlib import Path
-from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
 from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, DumpConfig
-
-console = Console()
+from .logging_utils import (
+    log_info, log_success, log_error, log_warning, log_panel, console
+)
 
 
 def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
@@ -35,11 +34,9 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
 
         # Determine which containers to dump
         if not dump_config.containers:
-            console.print(
-                "[red]Error: Please specify containers to dump using --containers option[/red]"
-            )
-            console.print("Use --containers all to dump all containers")
-            console.print(
+            log_error("Error: Please specify containers to dump using --containers option")
+            log_info("Use --containers all to dump all containers")
+            log_info(
                 "Or use --containers 'container1,container2,container3' to dump "
                 "specific containers"
             )
@@ -49,7 +46,7 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
 
         if dump_config.containers.lower() == 'all':
             containers_to_dump = available_containers
-            console.print(f"[cyan]Dumping all {len(containers_to_dump)} containers[/cyan]")
+            log_info(f"Dumping all {len(containers_to_dump)} containers")
         else:
             containers_to_dump = [c.strip() for c in dump_config.containers.split(',')]
             # Validate that all specified containers exist
@@ -57,10 +54,8 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
                 c for c in containers_to_dump if c not in available_containers
             ]
             if missing_containers:
-                console.print(
-                    f"[red]Error: Containers not found: {', '.join(missing_containers)}[/red]"
-                )
-                console.print(f"Available containers: {', '.join(available_containers)}")
+                log_error(f"Error: Containers not found: {', '.join(missing_containers)}")
+                log_info(f"Available containers: {', '.join(available_containers)}")
                 raise Exception(f"Containers not found: {', '.join(missing_containers)}")
 
         # Prepare output data structure for multiple containers
@@ -79,12 +74,10 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
         # Process each container
         failed_containers = []
         for container_name in containers_to_dump:
-            console.print(Panel(f"[bold blue]Processing container: {container_name}[/bold blue]"))
+            log_panel(f"[bold blue]Processing container: {container_name}[/bold blue]", style="blue")
 
             # Get container properties to extract partition key
-            console.print(
-                f"[cyan]Extracting partition key information for {container_name}...[/cyan]"
-            )
+            log_info(f"Extracting partition key information for {container_name}...")
             try:
                 container_properties = client.get_container_properties(container_name)
 
@@ -92,19 +85,15 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
                 partition_key = None
                 if 'partitionKey' in container_properties:
                     partition_key = container_properties['partitionKey']
-                    console.print(f"[green]✓ Found partition key: {partition_key}[/green]")
+                    log_success(f"✓ Found partition key: {partition_key}")
                 else:
-                    console.print(
-                        f"[yellow]No partition key found for container '{container_name}'[/yellow]"
-                    )
+                    log_warning(f"No partition key found for container '{container_name}'")
 
                 # Get all items from the container
                 items = client.get_all_items(container_name)
 
                 if not items:
-                    console.print(
-                        f"[yellow]No items found in container '{container_name}'[/yellow]"
-                    )
+                    log_warning(f"No items found in container '{container_name}'")
                     # Still add container info even if empty
                     container_data = {
                         "name": container_name,
@@ -126,34 +115,34 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
                 output_data["containers"].append(container_data)
                 output_data["total_items"] += len(items)
 
-                console.print(
-                    f"[green]✓ Successfully processed container '{container_name}' with {len(items)} items[/green]"
+                log_success(
+                    f"✓ Successfully processed container '{container_name}' with {len(items)} items"
                 )
 
                 # Show sample of exported data
                 if items:
                     sample_item = items[0]
-                    console.print(f"[bold]Sample item structure for {container_name}:[/bold]")
-                    console.print(f"Keys: {list(sample_item.keys())}")
+                    log_info(f"[bold]Sample item structure for {container_name}:[/bold]")
+                    log_info(f"Keys: {list(sample_item.keys())}")
                     if 'id' in sample_item:
-                        console.print(f"ID: {sample_item['id']}")
+                        log_info(f"ID: {sample_item['id']}")
                     if 'type' in sample_item:
-                        console.print(f"Type: {sample_item['type']}")
+                        log_info(f"Type: {sample_item['type']}")
                     if partition_key and 'paths' in partition_key:
                         partition_paths = partition_key['paths']
-                        console.print(f"Partition paths: {partition_paths}")
+                        log_info(f"Partition paths: {partition_paths}")
 
             except Exception as e:
-                console.print(f"[red]Error processing container '{container_name}': {e}[/red]")
-                console.print(
-                    f"[yellow]Skipping container '{container_name}' and continuing with others...[/yellow]"
+                log_error(f"Error processing container '{container_name}': {e}")
+                log_warning(
+                    f"Skipping container '{container_name}' and continuing with others..."
                 )
                 failed_containers.append(container_name)
                 continue
 
         # Check if we have any successful containers
         if not output_data["containers"]:
-            console.print("[red]Error: No containers were successfully processed![/red]")
+            log_error("Error: No containers were successfully processed!")
             raise Exception("No containers were successfully processed")
 
         # Ensure output directory exists
@@ -161,7 +150,7 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            console.print(f"[red]Error creating output directory: {e}[/red]")
+            log_error(f"Error creating output directory: {e}")
             raise
 
         # Write to JSON file
@@ -172,20 +161,20 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
                 else:
                     json.dump(output_data, f, ensure_ascii=False, default=str)
         except Exception as e:
-            console.print(f"[red]Error writing to output file: {e}[/red]")
+            log_error(f"Error writing to output file: {e}")
             raise
 
         # Display final summary
-        console.print(Panel("[bold green]Export Summary[/bold green]"))
-        console.print(
-            f"[green]Successfully exported {output_data['total_items']} items from "
-            f"{len(output_data['containers'])} containers to {dump_config.output_dir}[/green]"
+        log_panel("[bold green]Export Summary[/bold green]", style="green")
+        log_success(
+            f"Successfully exported {output_data['total_items']} items from "
+            f"{len(output_data['containers'])} containers to {dump_config.output_dir}"
         )
 
         if failed_containers:
             failed_names = ', '.join(failed_containers)
-            console.print(
-                f"[yellow]Warning: {len(failed_containers)} containers failed to process: {failed_names}[/yellow]"
+            log_warning(
+                f"Warning: {len(failed_containers)} containers failed to process: {failed_names}"
             )
 
         # Show container summary table
@@ -209,11 +198,11 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
 
         # Show warning if some containers failed
         if failed_containers:
-            console.print(
-                f"\n[yellow]Export completed with warnings. {len(failed_containers)} containers failed.[/yellow]"
+            log_warning(
+                f"Export completed with warnings. {len(failed_containers)} containers failed."
             )
 
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        console.print("Please check your CosmosDB connection parameters and container names.")
+        log_error(f"Error: {e}")
+        log_info("Please check your CosmosDB connection parameters and container names.")
         raise

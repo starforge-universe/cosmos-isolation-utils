@@ -2,8 +2,6 @@
 Core database deletion functionality for CosmosDB.
 """
 
-from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from rich.prompt import Confirm
 from azure.cosmos import CosmosClient
@@ -11,29 +9,29 @@ from azure.cosmos.exceptions import CosmosHttpResponseError
 import urllib3
 
 from .config import DatabaseConfig, DeleteConfig
-
-
-
-console = Console()
+from .logging_utils import (
+    log_info, log_success, log_warning, log_error,
+    log_panel, log_checkmark, log_warning_icon, console
+)
 
 
 class DatabaseDeleter:
     """Class for deleting CosmosDB databases."""
 
     def __init__(self, db_config: DatabaseConfig):
-        console.print("[cyan]Initializing CosmosDB client...[/cyan]")
-        console.print(f"  Endpoint: {db_config.endpoint}")
-        console.print(f"  Allow insecure: {db_config.allow_insecure}")
+        log_info("Initializing CosmosDB client...")
+        log_info(f"  Endpoint: {db_config.endpoint}")
+        log_info(f"  Allow insecure: {db_config.allow_insecure}")
 
         # Control HTTPS verification warnings
         if db_config.allow_insecure:
-            console.print("[cyan]  Suppressing HTTPS verification warnings...[/cyan]")
+            log_info("  Suppressing HTTPS verification warnings...")
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        console.print("[cyan]  Creating CosmosClient...[/cyan]")
+        log_info("  Creating CosmosClient...")
         self.client = CosmosClient(db_config.endpoint, db_config.key)
-        console.print("[green]  ✓ CosmosClient created[/green]")
-        console.print("[green]✓ Database deleter initialization completed[/green]")
+        log_checkmark("  CosmosClient created")
+        log_checkmark("Database deleter initialization completed")
 
     def list_databases(self) -> list:
         """List all databases in the CosmosDB account."""
@@ -41,7 +39,7 @@ class DatabaseDeleter:
             databases = list(self.client.list_databases())
             return [db['id'] for db in databases]
         except Exception as e:
-            console.print(f"[red]Error listing databases: {e}[/red]")
+            log_error(f"Error listing databases: {e}")
             raise
 
     def get_database_info(self, database_name: str) -> dict:
@@ -65,12 +63,12 @@ class DatabaseDeleter:
             }
         except CosmosHttpResponseError as e:
             if e.status_code == 404:
-                console.print(f"[yellow]Database '{database_name}' not found[/yellow]")
+                log_warning(f"Database '{database_name}' not found")
                 return None
-            console.print(f"[red]Error getting database info for '{database_name}': {e}[/red]")
+            log_error(f"Error getting database info for '{database_name}': {e}")
             raise
         except Exception as e:
-            console.print(f"[red]Error getting database info for '{database_name}': {e}[/red]")
+            log_error(f"Error getting database info for '{database_name}': {e}")
             raise
 
     def delete_database(self, database_name: str, force: bool = False) -> bool:  # pylint: disable=unused-argument
@@ -79,61 +77,61 @@ class DatabaseDeleter:
             # Get database info first
             db_info = self.get_database_info(database_name)
             if not db_info:
-                console.print(f"[red]Database '{database_name}' does not exist[/red]")
+                log_error(f"Database '{database_name}' does not exist")
                 return False
 
             # Show database information
-            console.print(Panel("[bold red]Database to be deleted:[/bold red]"))
-            console.print(f"  Name: {db_info['name']}")
-            console.print(f"  ID: {db_info['id']}")
-            console.print(f"  Containers: {db_info['container_count']}")
+            log_panel("[bold red]Database to be deleted:[/bold red]", style="red")
+            log_info(f"  Name: {db_info['name']}")
+            log_info(f"  ID: {db_info['id']}")
+            log_info(f"  Containers: {db_info['container_count']}")
             if db_info['containers']:
-                console.print(
+                log_info(
                     f"  Container names: {', '.join(db_info['containers'])}"
                 )
-            console.print(f"  Created: {db_info['ts']}")
+            log_info(f"  Created: {db_info['ts']}")
 
             # Safety confirmation
             if not force:
-                console.print("\n[bold red]⚠️  WARNING: This action cannot be undone![/bold red]")
-                console.print(
-                    f"[red]All data in database '{database_name}' will be "
-                    f"permanently deleted.[/red]"
+                log_warning_icon("WARNING: This action cannot be undone!")
+                log_error(
+                    f"All data in database '{database_name}' will be "
+                    f"permanently deleted."
                 )
 
                 if not Confirm.ask(
                     f"Are you sure you want to delete database '{database_name}'?"
                 ):
-                    console.print("[yellow]Database deletion cancelled[/yellow]")
+                    log_warning("Database deletion cancelled")
                     return False
 
                 # Double confirmation for databases with containers
                 if db_info['container_count'] > 0:
-                    console.print(
-                        f"[bold red]⚠️  This database contains "
-                        f"{db_info['container_count']} containers with data![/bold red]"
+                    log_warning_icon(
+                        f"This database contains "
+                        f"{db_info['container_count']} containers with data!"
                     )
                     if not Confirm.ask(
                         "Are you absolutely sure? This will delete ALL data permanently!"
                     ):
-                        console.print("[yellow]Database deletion cancelled[/yellow]")
+                        log_warning("Database deletion cancelled")
                         return False
 
             # Proceed with deletion
-            console.print(f"[cyan]Deleting database '{database_name}'...[/cyan]")
+            log_info(f"Deleting database '{database_name}'...")
             self.client.delete_database(database_name)
 
-            console.print(f"[green]✓ Database '{database_name}' deleted successfully[/green]")
+            log_success(f"✓ Database '{database_name}' deleted successfully")
             return True
 
         except CosmosHttpResponseError as e:
             if e.status_code == 404:
-                console.print(f"[yellow]Database '{database_name}' not found[/yellow]")
+                log_warning(f"Database '{database_name}' not found")
                 return False
-            console.print(f"[red]Error deleting database '{database_name}': {e}[/red]")
+            log_error(f"Error deleting database '{database_name}': {e}")
             raise
         except Exception as e:
-            console.print(f"[red]Error deleting database '{database_name}': {e}[/red]")
+            log_error(f"Error deleting database '{database_name}': {e}")
             raise
 
 
@@ -144,11 +142,11 @@ def delete_database(db_config: DatabaseConfig, delete_config: DeleteConfig):
         deleter = DatabaseDeleter(db_config)
 
         if delete_config.list_only:
-            console.print(Panel("[bold blue]Listing all databases[/bold blue]"))
+            log_panel("[bold blue]Listing all databases[/bold blue]", style="blue")
             databases = deleter.list_databases()
 
             if not databases:
-                console.print("[yellow]No databases found in the CosmosDB account[/yellow]")
+                log_warning("No databases found in the CosmosDB account")
                 return
 
             table = Table(title="Available Databases")
@@ -164,19 +162,15 @@ def delete_database(db_config: DatabaseConfig, delete_config: DeleteConfig):
         # For the unified CLI, we need to get the database name from the context
         # This function is called from the delete_db subcommand which doesn't have a database parameter
         # So we'll just list databases for now
-        console.print(
-            "[yellow]Note: Database deletion requires specifying the database name.[/yellow]"
-        )
-        console.print(
-            "[yellow]Use the list-databases option to see available databases.[/yellow]"
-        )
+        log_warning("Note: Database deletion requires specifying the database name.")
+        log_warning("Use the list-databases option to see available databases.")
 
         # List databases by default
-        console.print(Panel("[bold blue]Available Databases[/bold blue]"))
+        log_panel("[bold blue]Available Databases[/bold blue]", style="blue")
         databases = deleter.list_databases()
 
         if not databases:
-            console.print("[yellow]No databases found in the CosmosDB account[/yellow]")
+            log_warning("No databases found in the CosmosDB account")
             return
 
         table = Table(title="Available Databases")
@@ -189,5 +183,5 @@ def delete_database(db_config: DatabaseConfig, delete_config: DeleteConfig):
         console.print(table)
 
     except Exception as e:
-        console.print(f"[red]Fatal error: {e}[/red]")
+        log_error(f"Fatal error: {e}")
         raise

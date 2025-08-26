@@ -9,15 +9,12 @@ from typing import List, Dict, Any, Optional, Iterator
 import urllib3
 from azure.cosmos import CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError
-from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .logging_utils import (
-    log_info, log_checkmark, log_error
+    log_info, log_checkmark, log_error, log_warning, log_success, console
 )
 from .config import DatabaseConfig
-
-console = Console()
 
 
 class CosmosDBClient:
@@ -25,9 +22,9 @@ class CosmosDBClient:
 
     def __init__(self, db_config: DatabaseConfig):
         log_info("Initializing CosmosDB client...")
-        console.print(f"  Endpoint: {db_config.endpoint}")
-        console.print(f"  Database: {db_config.database}")
-        console.print(f"  Allow insecure: {db_config.allow_insecure}")
+        log_info(f"  Endpoint: {db_config.endpoint}")
+        log_info(f"  Database: {db_config.database}")
+        log_info(f"  Allow insecure: {db_config.allow_insecure}")
 
         # Control HTTPS verification warnings
         if db_config.allow_insecure:
@@ -75,9 +72,7 @@ class CosmosDBClient:
             container = self.get_container_client(container_name)
             return container.read()
         except CosmosHttpResponseError as e:
-            console.print(
-                f"[red]Error reading container properties for '{container_name}': {e}[/red]"
-            )
+            log_error(f"Error reading container properties for '{container_name}': {e}")
             raise
 
     def list_containers(self) -> List[str]:
@@ -104,9 +99,7 @@ class CosmosDBClient:
                 yield self._filter_internal_attributes(item)
 
         except CosmosHttpResponseError as e:
-            console.print(
-                f"[red]Error querying container '{container_name}': {e}[/red]"
-            )
+            log_error(f"Error querying container '{container_name}': {e}")
             raise
 
     def get_all_items(self, container_name: str) -> List[Dict[str, Any]]:
@@ -122,14 +115,10 @@ class CosmosDBClient:
             total_count = count_result[0] if count_result else 0
 
             if total_count == 0:
-                console.print(
-                    f"[yellow]No items found in container '{container_name}'[/yellow]"
-                )
+                log_warning(f"No items found in container '{container_name}'")
                 return []
 
-            console.print(
-                f"[green]Found {total_count} items in container '{container_name}'[/green]"
-            )
+            log_success(f"Found {total_count} items in container '{container_name}'")
 
             # Get all items with progress tracking
             all_items = []
@@ -156,10 +145,7 @@ class CosmosDBClient:
             return all_items
 
         except CosmosHttpResponseError as e:
-            console.print(
-                f"[red]Error getting items from container "
-                f"'{container_name}': {e}[/red]"
-            )
+            log_error(f"Error getting items from container '{container_name}': {e}")
             raise
 
     def create_item(self, container_name: str, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -169,10 +155,7 @@ class CosmosDBClient:
         try:
             return container.create_item(item)
         except CosmosHttpResponseError as e:
-            console.print(
-                f"[red]Error creating item in container "
-                f"'{container_name}': {e}[/red]"
-            )
+            log_error(f"Error creating item in container '{container_name}': {e}")
             raise
 
     def upsert_item(self, container_name: str, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -182,10 +165,7 @@ class CosmosDBClient:
         try:
             return container.upsert_item(item)
         except CosmosHttpResponseError as e:
-            console.print(
-                f"[red]Error upserting item in container "
-                f"'{container_name}': {e}[/red]"
-            )
+            log_error(f"Error upserting item in container '{container_name}': {e}")
             raise
 
     def create_items_batch(self, container_name: str, items: List[Dict[str, Any]],
@@ -286,10 +266,7 @@ class CosmosDBClient:
                     container_stats = self.get_container_stats(container_name)
                     stats.append(container_stats)
                 except Exception as e:
-                    console.print(
-                        f"[yellow]Warning: Could not get stats for container "
-                        f"'{container_name}': {e}[/yellow]"
-                    )
+                    log_warning(f"Warning: Could not get stats for container '{container_name}': {e}")
                     # Add basic info even if stats fail
                     stats.append({
                         "name": container_name,
@@ -302,5 +279,5 @@ class CosmosDBClient:
             return stats
 
         except Exception as e:
-            console.print(f"[red]Error getting container statistics: {e}[/red]")
+            log_error(f"Error getting container statistics: {e}")
             raise

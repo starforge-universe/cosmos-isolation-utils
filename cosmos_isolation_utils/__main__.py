@@ -7,7 +7,6 @@ This module provides a unified command-line interface for all CosmosDB isolation
 
 import sys
 import click
-from rich.console import Console
 
 from .core import (
     test_connection,
@@ -22,8 +21,7 @@ from .core import (
     StatusConfig,
     ConnectionConfig
 )
-
-console = Console()
+from .core.logging_utils import log_bold, log_error
 
 
 @click.group()
@@ -60,7 +58,7 @@ def main(ctx, endpoint: str, key: str, database: str, allow_insecure: bool):
 @click.pass_context
 def test(ctx, create_database: bool, force: bool):
     """Test CosmosDB connection and list containers."""
-    console.print("[bold blue]Testing CosmosDB Connection[/bold blue]")
+    log_bold("Testing CosmosDB Connection", color="blue")
     try:
         # Create configuration objects
         db_config = DatabaseConfig(
@@ -76,7 +74,7 @@ def test(ctx, create_database: bool, force: bool):
 
         test_connection(db_config, connection_config)
     except Exception as e:
-        console.print(f"[red]Connection test failed: {e}[/red]")
+        log_error(f"Connection test failed: {e}")
         sys.exit(1)
 
 
@@ -100,7 +98,7 @@ def status(ctx, detailed: bool):
 
         get_container_status(db_config, status_config)
     except Exception as e:
-        console.print(f"[red]Failed to get container status: {e}[/red]")
+        log_error(f"Failed to get container status: {e}")
         sys.exit(1)
 
 
@@ -137,7 +135,7 @@ def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=
 
         dump_containers(db_config, dump_config)
     except Exception as e:
-        console.print(f"[red]Failed to dump containers: {e}[/red]")
+        log_error(f"Failed to dump containers: {e}")
         sys.exit(1)
 
 
@@ -180,7 +178,7 @@ def upload(ctx, input_file: str, batch_size: int, upsert: bool, dry_run: bool,  
 
         upload_entries(db_config, upload_config)
     except Exception as e:
-        console.print(f"[red]Failed to upload entries: {e}[/red]")
+        log_error(f"Failed to upload entries: {e}")
         sys.exit(1)
 
 
@@ -207,7 +205,7 @@ def delete_db(ctx, list_databases: bool, force: bool):
 
         delete_database(db_config, delete_config)
     except Exception as e:
-        console.print(f"[red]Failed to delete database: {e}[/red]")
+        log_error(f"Failed to delete database: {e}")
         sys.exit(1)
 
 

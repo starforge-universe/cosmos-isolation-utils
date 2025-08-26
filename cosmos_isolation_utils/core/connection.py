@@ -3,93 +3,93 @@ Core connection testing functionality for CosmosDB.
 """
 
 from azure.cosmos.exceptions import CosmosHttpResponseError
-from rich.console import Console
 from rich.prompt import Confirm
 
 from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, ConnectionConfig
-
-console = Console()
+from .logging_utils import (
+    log_info, log_success, log_error, log_warning, log_step, log_checkmark
+)
 
 
 def test_connection(db_config: DatabaseConfig, connection_config: ConnectionConfig):
     """Test CosmosDB connection and list containers."""
-    console.print(f"Endpoint: {db_config.endpoint}")
-    console.print(f"Database: {db_config.database}")
-    console.print(f"Allow insecure: {db_config.allow_insecure}")
-    console.print(f"Create database if missing: {connection_config.create_database}")
+    log_info(f"Endpoint: {db_config.endpoint}")
+    log_info(f"Database: {db_config.database}")
+    log_info(f"Allow insecure: {db_config.allow_insecure}")
+    log_info(f"Create database if missing: {connection_config.create_database}")
 
-    console.print("\n[cyan]Step 1: Initializing CosmosDB client...[/cyan]")
+    log_step(1, "Initializing CosmosDB client...")
     # Test connection using our custom client
     try:
         client = CosmosDBClient(db_config)
-        console.print("[green]✓ CosmosDB client initialized[/green]")
+        log_checkmark("CosmosDB client initialized")
     except Exception as e:
-        console.print(f"[red]Error initializing client: {e}[/red]")
+        log_error(f"Error initializing client: {e}")
         raise
 
-    console.print("\n[cyan]Step 2: Testing database access...[/cyan]")
+    log_step(2, "Testing database access...")
     # Test if we can access the database by listing containers
-    console.print("[cyan]  Attempting to list containers...[/cyan]")
+    log_info("  Attempting to list containers...")
 
     try:
         containers = client.list_containers()
-        console.print(f"[green]✓ Successfully connected to database: {db_config.database}[/green]")
+        log_success(f"✓ Successfully connected to database: {db_config.database}")
 
-        console.print("\n[cyan]Step 3: Listing containers...[/cyan]")
+        log_step(3, "Listing containers...")
         if containers:
-            console.print(f"\n[bold]Available containers ({len(containers)}):[/bold]")
+            log_info(f"\n[bold]Available containers ({len(containers)}):[/bold]")
             for i, container in enumerate(containers, 1):
-                console.print(f"  {i}. {container}")
+                log_info(f"  {i}. {container}")
         else:
-            console.print("\n[yellow]No containers found in the database.[/yellow]")
+            log_warning("No containers found in the database.")
 
-        console.print("\n[green]Connection test completed successfully![/green]")
+        log_success("Connection test completed successfully!")
 
     except CosmosHttpResponseError as e:
         if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
-            console.print(
-                f"[yellow]Database '{db_config.database}' does not exist or "
-                f"is not accessible.[/yellow]"
+            log_warning(
+                f"Database '{db_config.database}' does not exist or "
+                f"is not accessible."
             )
 
             if connection_config.create_database:
                 if not connection_config.force:
                     if not Confirm.ask(f"Do you want to create database '{db_config.database}'?"):
-                        console.print("[yellow]Database creation cancelled.[/yellow]")
+                        log_warning("Database creation cancelled.")
                         return  # User cancelled, exit cleanly
 
                 try:
-                    console.print(f"[cyan]Creating database '{db_config.database}'...[/cyan]")
+                    log_info(f"Creating database '{db_config.database}'...")
                     client.client.create_database_if_not_exists(db_config.database)
-                    console.print(f"[green]✓ Database '{db_config.database}' created successfully[/green]")
+                    log_checkmark(f"Database '{db_config.database}' created successfully")
 
                     # Try listing containers again
-                    console.print("\n[cyan]Testing database access after creation...[/cyan]")
+                    log_info("Testing database access after creation...")
                     containers = client.list_containers()
-                    console.print(
-                        f"[green]✓ Successfully connected to newly created "
-                        f"database: {db_config.database}[/green]"
+                    log_success(
+                        f"✓ Successfully connected to newly created "
+                        f"database: {db_config.database}"
                     )
 
                     if containers:
-                        console.print(f"\n[bold]Available containers ({len(containers)}):[/bold]")
+                        log_info(f"\n[bold]Available containers ({len(containers)}):[/bold]")
                         for i, container in enumerate(containers, 1):
-                            console.print(f"  {i}. {container}")
+                            log_info(f"  {i}. {container}")
                     else:
-                        console.print("\n[yellow]No containers found in the new database.[/yellow]")
+                        log_warning("No containers found in the new database.")
 
-                    console.print("\n[green]Connection test completed successfully![/green]")
+                    log_success("Connection test completed successfully!")
 
                 except Exception as e2:
-                    console.print(f"[red]Error creating database '{db_config.database}': {e2}[/red]")
+                    log_error(f"Error creating database '{db_config.database}': {e2}")
                     raise
             else:
-                console.print(
-                    f"[red]Database '{db_config.database}' does not exist. "
-                    f"Use --create-database flag to create it.[/red]"
+                log_error(
+                    f"Database '{db_config.database}' does not exist. "
+                    f"Use --create-database flag to create it."
                 )
                 raise Exception(f"Database '{db_config.database}' does not exist") from e
         else:
-            console.print(f"[red]Error accessing database: {e}[/red]")
+            log_error(f"Error accessing database: {e}")
             raise

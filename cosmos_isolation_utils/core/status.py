@@ -2,15 +2,14 @@
 Core container status functionality for CosmosDB.
 """
 
-from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, StatusConfig
-
-console = Console()
+from .logging_utils import (
+    log_info, log_warning, log_error, log_panel, console
+)
 
 
 def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig):
@@ -20,7 +19,7 @@ def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig)
         # Initialize CosmosDB client
         client = CosmosDBClient(db_config)
 
-        console.print(Panel(f"[bold blue]Database: {db_config.database}[/bold blue]"))
+        log_panel(f"[bold blue]Database: {db_config.database}[/bold blue]", style="blue")
 
         # Get container statistics
         with Progress(
@@ -33,7 +32,7 @@ def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig)
             progress.update(task, completed=True)
 
         if not container_stats:
-            console.print("[yellow]No containers found in the database.[/yellow]")
+            log_warning("No containers found in the database.")
             return
 
         # Display summary
@@ -41,9 +40,7 @@ def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig)
             stat['item_count'] for stat in container_stats
             if isinstance(stat['item_count'], int)
         )
-        console.print(
-            f"[cyan]Found {len(container_stats)} containers with {total_items} total items[/cyan]"
-        )
+        log_info(f"Found {len(container_stats)} containers with {total_items} total items")
 
         # Create main table
         table = Table(title="Container Status")
@@ -82,20 +79,20 @@ def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig)
 
         # Show detailed information if requested
         if status_config.detailed:
-            console.print("\n" + "="*80)
-            console.print("[bold]Detailed Container Information[/bold]")
+            log_info("\n" + "="*80)
+            log_info("[bold]Detailed Container Information[/bold]")
 
             for stat in container_stats:
-                console.print(Panel(f"[bold blue]{stat['name']}[/bold blue]"))
-                console.print(f"  Items: {stat['item_count']}")
-                console.print(f"  Partition Key: {stat['partition_key']}")
-                console.print(f"  Last Modified: {stat['last_modified']}")
-                console.print(f"  ETag: {stat['etag']}")
-                console.print()
+                log_panel(f"[bold blue]{stat['name']}[/bold blue]", style="blue")
+                log_info(f"  Items: {stat['item_count']}")
+                log_info(f"  Partition Key: {stat['partition_key']}")
+                log_info(f"  Last Modified: {stat['last_modified']}")
+                log_info(f"  ETag: {stat['etag']}")
+                log_info("")
 
         # Show recommendations
-        console.print("\n" + "="*80)
-        console.print("[bold]Recommendations[/bold]")
+        log_info("\n" + "="*80)
+        log_info("[bold]Recommendations[/bold]")
 
         # Check for containers with no items
         empty_containers = [
@@ -103,9 +100,9 @@ def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig)
         ]
         if empty_containers:
             empty_names = ', '.join(stat['name'] for stat in empty_containers)
-            console.print(
-                f"[yellow]• {len(empty_containers)} containers are empty: "
-                f"{empty_names}[/yellow]"
+            log_warning(
+                f"• {len(empty_containers)} containers are empty: "
+                f"{empty_names}"
             )
 
         # Check for containers without partition keys
@@ -114,39 +111,39 @@ def get_container_status(db_config: DatabaseConfig, status_config: StatusConfig)
         ]
         if no_partition_key:
             no_pk_names = ', '.join(stat['name'] for stat in no_partition_key)
-            console.print(
-                f"[yellow]• {len(no_partition_key)} containers have no partition key: {no_pk_names}[/yellow]"
+            log_warning(
+                f"• {len(no_partition_key)} containers have no partition key: {no_pk_names}"
             )
 
         # Show dump commands
-        console.print("\n[bold]Dump Commands:[/bold]")
+        log_info("\n[bold]Dump Commands:[/bold]")
         dump_all_cmd = (
             f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"dump -c all -o all_containers.json"
         )
-        console.print(f"[cyan]• Dump all containers:[/cyan] {dump_all_cmd}")
+        log_info(f"[cyan]• Dump all containers:[/cyan] {dump_all_cmd}")
 
         dump_specific_cmd = (
             f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"dump -c 'container1,container2' -o selected_containers.json"
         )
-        console.print(f"[cyan]• Dump specific containers:[/cyan] {dump_specific_cmd}")
+        log_info(f"[cyan]• Dump specific containers:[/cyan] {dump_specific_cmd}")
 
         # Show upload commands
-        console.print("\n[bold]Upload Commands:[/bold]")
+        log_info("\n[bold]Upload Commands:[/bold]")
         upload_all_cmd = (
             f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"upload -i all_containers.json --create-containers"
         )
-        console.print(f"[cyan]• Upload all containers:[/cyan] {upload_all_cmd}")
+        log_info(f"[cyan]• Upload all containers:[/cyan] {upload_all_cmd}")
 
         upload_specific_cmd = (
             f"cosmos-isolation-utils -e {db_config.endpoint} -k {db_config.key} -d {db_config.database} "
             f"upload -i all_containers.json -c 'container1,container2' --create-containers"
         )
-        console.print(f"[cyan]• Upload specific containers:[/cyan] {upload_specific_cmd}")
+        log_info(f"[cyan]• Upload specific containers:[/cyan] {upload_specific_cmd}")
 
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        console.print("Please check your CosmosDB connection parameters.")
+        log_error(f"Error: {e}")
+        log_info("Please check your CosmosDB connection parameters.")
         raise

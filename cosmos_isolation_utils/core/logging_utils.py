@@ -8,29 +8,34 @@ from rich.panel import Panel
 console = Console()
 
 
+def log_with_color(text: str, color: str):
+    """Log message with specified color."""
+    console.print(f"[{color}]{text}[/{color}]")
+
+
 def log_info(text: str):
     """Log informational message with cyan styling."""
-    console.print(f"[cyan]{text}[/cyan]")
+    log_with_color(text, "cyan")
 
 
 def log_success(text: str):
     """Log success message with green styling."""
-    console.print(f"[green]{text}[/green]")
+    log_with_color(text, "green")
 
 
 def log_warning(text: str):
     """Log warning message with yellow styling."""
-    console.print(f"[yellow]{text}[/yellow]")
+    log_with_color(text, "yellow")
 
 
 def log_error(text: str):
     """Log error message with red styling."""
-    console.print(f"[red]{text}[/red]")
+    log_with_color(text, "red")
 
 
 def log_bold(text: str, color: str = "blue"):
     """Log bold message with specified color."""
-    console.print(f"[bold {color}]{text}[/bold {color}]")
+    log_with_color(text, f"bold {color}")
 
 
 def log_panel(text: str, title: str = "", style: str = "blue"):
@@ -40,22 +45,22 @@ def log_panel(text: str, title: str = "", style: str = "blue"):
 
 def log_step(step_number: int, text: str):
     """Log a step in a process."""
-    console.print(f"\n[cyan]Step {step_number}: {text}[/cyan]")
+    log_with_color(f"\nStep {step_number}: {text}", "cyan")
 
 
 def log_checkmark(text: str):
     """Log success message with checkmark."""
-    console.print(f"[green]✓ {text}[/green]")
+    log_with_color(f"✓ {text}", "green")
 
 
 def log_cross(text: str):
     """Log error message with cross."""
-    console.print(f"[red]✗ {text}[/red]")
+    log_with_color(f"✗ {text}", "red")
 
 
 def log_warning_icon(text: str):
     """Log warning message with warning icon."""
-    console.print(f"[yellow]⚠️  {text}[/yellow]")
+    log_with_color(f"⚠️  {text}", "yellow")
 
 
 def log_database_info(endpoint: str, database: str, allow_insecure: bool):
@@ -67,7 +72,7 @@ def log_database_info(endpoint: str, database: str, allow_insecure: bool):
 
 def log_container_info(container_name: str, item_count: int):
     """Log container information."""
-    console.print(f"[cyan]Container: {container_name} ({item_count} items)[/cyan]")
+    log_with_color(f"Container: {container_name} ({item_count} items)", "cyan")
 
 
 def log_upload_summary(database: str, container_count: int, total_items: int,  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -86,6 +91,6 @@ def log_upload_summary(database: str, container_count: int, total_items: int,  #
 def log_results_summary(total_uploaded: int, successful_count: int, failed_count: int):
     """Log upload results summary."""
     log_panel("[bold green]Upload Results[/bold green]")
-    console.print(f"[green]Total items uploaded: {total_uploaded}[/green]")
-    console.print(f"[green]Successful containers: {successful_count}[/green]")
-    console.print(f"[red]Failed containers: {failed_count}[/red]")
+    log_with_color(f"Total items uploaded: {total_uploaded}", "green")
+    log_with_color(f"Successful containers: {successful_count}", "green")
+    log_with_color(f"Failed containers: {failed_count}", "red")
