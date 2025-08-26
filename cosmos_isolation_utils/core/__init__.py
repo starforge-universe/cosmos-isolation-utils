@@ -5,7 +5,7 @@ This module contains the actual business logic for all the utilities,
 separated from the CLI interface.
 """
 
-from .connection import test_connection
+from .connection import ConnectionTester
 from .dump import dump_containers
 from .upload import upload_entries
 from .delete import delete_database
@@ -19,7 +19,7 @@ from .logging_utils import (
 )
 
 __all__ = [
-    'test_connection',
+    'ConnectionTester',
     'dump_containers',
     'upload_entries',
     'delete_database',

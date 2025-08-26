@@ -9,7 +9,7 @@ import sys
 import click
 
 from .core import (
-    test_connection,
+    ConnectionTester,
     dump_containers,
     upload_entries,
     delete_database,
@@ -72,7 +72,9 @@ def test(ctx, create_database: bool, force: bool):
             force=force
         )
 
-        test_connection(db_config, connection_config)
+        # Create connection tester instance and run test
+        tester = ConnectionTester(db_config, connection_config)
+        tester.test_connection()
     except Exception as e:
         log_error(f"Connection test failed: {e}")
         sys.exit(1)
