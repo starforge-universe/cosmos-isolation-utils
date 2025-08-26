@@ -12,7 +12,7 @@ from .core import (
     ConnectionTester,
     ContainerDumper,
     ContainerUploader,
-    delete_database,
+    DatabaseDeleter,
     DatabaseConfig,
     UploadConfig,
     DumpConfig,
@@ -211,7 +211,9 @@ def delete_db(ctx, list_databases: bool, force: bool):
             list_only=list_databases
         )
 
-        delete_database(db_config, delete_config)
+        # Create database deleter instance and run delete operation
+        deleter = DatabaseDeleter(db_config)
+        deleter.delete_database(delete_config)
     except Exception as e:
         log_error(f"Failed to delete database: {e}")
         sys.exit(1)

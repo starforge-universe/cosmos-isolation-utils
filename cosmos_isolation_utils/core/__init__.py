@@ -8,7 +8,7 @@ separated from the CLI interface.
 from .connection import ConnectionTester
 from .dump import ContainerDumper
 from .upload import ContainerUploader
-from .delete import delete_database
+from .delete import DatabaseDeleter
 from .config import (
     DatabaseConfig, UploadConfig, DumpConfig, DeleteConfig, StatusConfig, ConnectionConfig
 )
@@ -22,7 +22,7 @@ __all__ = [
     'ConnectionTester',
     'ContainerDumper',
     'ContainerUploader',
-    'delete_database',
+    'DatabaseDeleter',
     'DatabaseConfig',
     'UploadConfig',
     'DumpConfig',

@@ -15,25 +15,31 @@ from .logging_utils import (
 )
 
 
-class DatabaseDeleter:
+class DatabaseDeleter:  # pylint: disable=too-few-public-methods
     """Class for deleting CosmosDB databases."""
 
     def __init__(self, db_config: DatabaseConfig):
+        """Initialize the database deleter with database configuration."""
+        self.db_config = db_config
+        self.client = None
+
+    def _initialize_client(self) -> None:
+        """Initialize the CosmosDB client."""
         log_info("Initializing CosmosDB client...")
-        log_info(f"  Endpoint: {db_config.endpoint}")
-        log_info(f"  Allow insecure: {db_config.allow_insecure}")
+        log_info(f"  Endpoint: {self.db_config.endpoint}")
+        log_info(f"  Allow insecure: {self.db_config.allow_insecure}")
 
         # Control HTTPS verification warnings
-        if db_config.allow_insecure:
+        if self.db_config.allow_insecure:
             log_info("  Suppressing HTTPS verification warnings...")
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         log_info("  Creating CosmosClient...")
-        self.client = CosmosClient(db_config.endpoint, db_config.key)
+        self.client = CosmosClient(self.db_config.endpoint, self.db_config.key)
         log_checkmark("  CosmosClient created")
         log_checkmark("Database deleter initialization completed")
 
-    def list_databases(self) -> list:
+    def _list_databases(self) -> list:
         """List all databases in the CosmosDB account."""
         try:
             databases = list(self.client.list_databases())
@@ -42,7 +48,7 @@ class DatabaseDeleter:
             log_error(f"Error listing databases: {e}")
             raise
 
-    def get_database_info(self, database_name: str) -> dict:
+    def _get_database_info(self, database_name: str) -> dict:
         """Get information about a specific database."""
         try:
             database = self.client.get_database_client(database_name)
@@ -71,11 +77,11 @@ class DatabaseDeleter:
             log_error(f"Error getting database info for '{database_name}': {e}")
             raise
 
-    def delete_database(self, database_name: str, force: bool = False) -> bool:  # pylint: disable=unused-argument
-        """Delete a database with optional confirmation."""
+    def _delete_single_database(self, database_name: str, force: bool = False) -> bool:
+        """Delete a single database with optional confirmation."""
         try:
             # Get database info first
-            db_info = self.get_database_info(database_name)
+            db_info = self._get_database_info(database_name)
             if not db_info:
                 log_error(f"Database '{database_name}' does not exist")
                 return False
@@ -134,41 +140,8 @@ class DatabaseDeleter:
             log_error(f"Error deleting database '{database_name}': {e}")
             raise
 
-
-def delete_database(db_config: DatabaseConfig, delete_config: DeleteConfig):
-    """Delete CosmosDB databases with safety confirmations."""
-    try:
-        # Initialize database deleter
-        deleter = DatabaseDeleter(db_config)
-
-        if delete_config.list_only:
-            log_panel("[bold blue]Listing all databases[/bold blue]", style="blue")
-            databases = deleter.list_databases()
-
-            if not databases:
-                log_warning("No databases found in the CosmosDB account")
-                return
-
-            table = Table(title="Available Databases")
-            table.add_column("Database Name", style="cyan")
-            table.add_column("Index", style="green")
-
-            for i, db_name in enumerate(databases, 1):
-                table.add_row(db_name, str(i))
-
-            console.print(table)
-            return
-
-        # For the unified CLI, we need to get the database name from the context
-        # This function is called from the delete_db subcommand which doesn't have a database parameter
-        # So we'll just list databases for now
-        log_warning("Note: Database deletion requires specifying the database name.")
-        log_warning("Use the list-databases option to see available databases.")
-
-        # List databases by default
-        log_panel("[bold blue]Available Databases[/bold blue]", style="blue")
-        databases = deleter.list_databases()
-
+    def _display_databases_table(self, databases: list) -> None:
+        """Display databases in a formatted table."""
         if not databases:
             log_warning("No databases found in the CosmosDB account")
             return
@@ -182,6 +155,28 @@ def delete_database(db_config: DatabaseConfig, delete_config: DeleteConfig):
 
         console.print(table)
 
-    except Exception as e:
-        log_error(f"Fatal error: {e}")
-        raise
+    def _handle_list_only_mode(self) -> None:
+        """Handle list-only mode to display available databases."""
+        log_panel("[bold blue]Listing all databases[/bold blue]", style="blue")
+        databases = self._list_databases()
+        self._display_databases_table(databases)
+
+    def _handle_default_mode(self) -> None:
+        """Handle default mode when no specific action is specified."""
+        log_warning("Note: Database deletion requires specifying the database name.")
+        log_warning("Use the list-databases option to see available databases.")
+
+        # List databases by default
+        log_panel("[bold blue]Available Databases[/bold blue]", style="blue")
+        databases = self._list_databases()
+        self._display_databases_table(databases)
+
+    def delete_database(self, delete_config: DeleteConfig) -> None:
+        """Main method to handle database deletion operations."""
+        # Initialize client
+        self._initialize_client()
+
+        if delete_config.list_only:
+            self._handle_list_only_mode()
+        else:
+            self._handle_default_mode()
