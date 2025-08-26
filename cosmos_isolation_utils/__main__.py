@@ -10,7 +10,6 @@ import click
 
 from .core import (
     test_connection,
-    get_container_status,
     dump_containers,
     upload_entries,
     delete_database,
@@ -21,6 +20,7 @@ from .core import (
     StatusConfig,
     ConnectionConfig
 )
+from .core.status import ContainerStatusAnalyzer
 from .core.logging_utils import log_bold, log_error
 
 
@@ -96,7 +96,9 @@ def status(ctx, detailed: bool):
             detailed=detailed
         )
 
-        get_container_status(db_config, status_config)
+        # Create analyzer instance and run analysis
+        analyzer = ContainerStatusAnalyzer(db_config, status_config)
+        analyzer.analyze()
     except Exception as e:
         log_error(f"Failed to get container status: {e}")
         sys.exit(1)

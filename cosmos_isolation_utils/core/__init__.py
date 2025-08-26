@@ -6,7 +6,6 @@ separated from the CLI interface.
 """
 
 from .connection import test_connection
-from .status import get_container_status
 from .dump import dump_containers
 from .upload import upload_entries
 from .delete import delete_database
@@ -21,7 +20,6 @@ from .logging_utils import (
 
 __all__ = [
     'test_connection',
-    'get_container_status',
     'dump_containers',
     'upload_entries',
     'delete_database',
