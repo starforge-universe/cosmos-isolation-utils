@@ -13,27 +13,35 @@ from .logging_utils import (
 )
 
 
-def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
-    """Dump all entries from multiple CosmosDB containers to a single JSON file."""
+class ContainerDumper:  # pylint: disable=too-few-public-methods
+    """Dumper class for CosmosDB container operations."""
 
-    try:
-        # Initialize CosmosDB client
-        client = CosmosDBClient(db_config)
+    def __init__(self, db_config: DatabaseConfig, dump_config: DumpConfig):
+        """Initialize the container dumper with database and dump configuration."""
+        self.db_config = db_config
+        self.dump_config = dump_config
+        self.client = None
+        self.output_data = None
 
-        if dump_config.list_containers:
-            containers_list = client.list_containers()
-            table = Table(title="Available Containers")
-            table.add_column("Container Name", style="cyan")
-            table.add_column("Index", style="green")
+    def _initialize_client(self) -> None:
+        """Initialize the CosmosDB client."""
+        self.client = CosmosDBClient(self.db_config)
 
-            for i, container_name in enumerate(containers_list, 1):
-                table.add_row(container_name, str(i))
+    def _list_containers_only(self) -> None:
+        """Display list of available containers and return early."""
+        containers_list = self.client.list_containers()
+        table = Table(title="Available Containers")
+        table.add_column("Container Name", style="cyan")
+        table.add_column("Index", style="green")
 
-            console.print(table)
-            return
+        for i, container_name in enumerate(containers_list, 1):
+            table.add_row(container_name, str(i))
 
-        # Determine which containers to dump
-        if not dump_config.containers:
+        console.print(table)
+
+    def _validate_containers(self) -> list:
+        """Validate and determine which containers to dump."""
+        if not self.dump_config.containers:
             log_error("Error: Please specify containers to dump using --containers option")
             log_info("Use --containers all to dump all containers")
             log_info(
@@ -42,13 +50,13 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
             )
             raise Exception("No containers specified")
 
-        available_containers = client.list_containers()
+        available_containers = self.client.list_containers()
 
-        if dump_config.containers.lower() == 'all':
+        if self.dump_config.containers.lower() == 'all':
             containers_to_dump = available_containers
             log_info(f"Dumping all {len(containers_to_dump)} containers")
         else:
-            containers_to_dump = [c.strip() for c in dump_config.containers.split(',')]
+            containers_to_dump = [c.strip() for c in self.dump_config.containers.split(',')]
             # Validate that all specified containers exist
             missing_containers = [
                 c for c in containers_to_dump if c not in available_containers
@@ -58,12 +66,15 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
                 log_info(f"Available containers: {', '.join(available_containers)}")
                 raise Exception(f"Containers not found: {', '.join(missing_containers)}")
 
-        # Prepare output data structure for multiple containers
-        output_data = {
-            "database": db_config.database,
+        return containers_to_dump
+
+    def _prepare_output_structure(self, containers_to_dump: list) -> None:
+        """Prepare the output data structure for multiple containers."""
+        self.output_data = {
+            "database": self.db_config.database,
             "exported_at": (
-                str(Path(dump_config.output_dir).stat().st_mtime)
-                if Path(dump_config.output_dir).exists()
+                str(Path(self.dump_config.output_dir).stat().st_mtime)
+                if Path(self.dump_config.output_dir).exists()
                 else "N/A"
             ),
             "total_containers": len(containers_to_dump),
@@ -71,104 +82,118 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
             "containers": []
         }
 
-        # Process each container
-        failed_containers = []
-        for container_name in containers_to_dump:
-            log_panel(f"[bold blue]Processing container: {container_name}[/bold blue]", style="blue")
+    def _process_container(self, container_name: str) -> bool:
+        """Process a single container and return success status."""
+        log_panel(f"[bold blue]Processing container: {container_name}[/bold blue]", style="blue")
 
+        try:
             # Get container properties to extract partition key
             log_info(f"Extracting partition key information for {container_name}...")
-            try:
-                container_properties = client.get_container_properties(container_name)
+            container_properties = self.client.get_container_properties(container_name)
 
-                # Extract only partition key information
-                partition_key = None
-                if 'partitionKey' in container_properties:
-                    partition_key = container_properties['partitionKey']
-                    log_success(f"✓ Found partition key: {partition_key}")
-                else:
-                    log_warning(f"No partition key found for container '{container_name}'")
+            # Extract only partition key information
+            partition_key = None
+            if 'partitionKey' in container_properties:
+                partition_key = container_properties['partitionKey']
+                log_success(f"✓ Found partition key: {partition_key}")
+            else:
+                log_warning(f"No partition key found for container '{container_name}'")
 
-                # Get all items from the container
-                items = client.get_all_items(container_name)
+            # Get all items from the container
+            items = self.client.get_all_items(container_name)
 
-                if not items:
-                    log_warning(f"No items found in container '{container_name}'")
-                    # Still add container info even if empty
-                    container_data = {
-                        "name": container_name,
-                        "total_items": 0,
-                        "partition_key": partition_key,
-                        "items": []
-                    }
-                    output_data["containers"].append(container_data)
-                    continue
-
-                # Prepare container data
+            if not items:
+                log_warning(f"No items found in container '{container_name}'")
+                # Still add container info even if empty
                 container_data = {
                     "name": container_name,
-                    "total_items": len(items),
+                    "total_items": 0,
                     "partition_key": partition_key,
-                    "items": items
+                    "items": []
                 }
+                self.output_data["containers"].append(container_data)
+                return True
 
-                output_data["containers"].append(container_data)
-                output_data["total_items"] += len(items)
+            # Prepare container data
+            container_data = {
+                "name": container_name,
+                "total_items": len(items),
+                "partition_key": partition_key,
+                "items": items
+            }
 
-                log_success(
-                    f"✓ Successfully processed container '{container_name}' with {len(items)} items"
-                )
+            self.output_data["containers"].append(container_data)
+            self.output_data["total_items"] += len(items)
 
-                # Show sample of exported data
-                if items:
-                    sample_item = items[0]
-                    log_info(f"[bold]Sample item structure for {container_name}:[/bold]")
-                    log_info(f"Keys: {list(sample_item.keys())}")
-                    if 'id' in sample_item:
-                        log_info(f"ID: {sample_item['id']}")
-                    if 'type' in sample_item:
-                        log_info(f"Type: {sample_item['type']}")
-                    if partition_key and 'paths' in partition_key:
-                        partition_paths = partition_key['paths']
-                        log_info(f"Partition paths: {partition_paths}")
+            log_success(
+                f"✓ Successfully processed container '{container_name}' with {len(items)} items"
+            )
 
-            except Exception as e:
-                log_error(f"Error processing container '{container_name}': {e}")
-                log_warning(
-                    f"Skipping container '{container_name}' and continuing with others..."
-                )
+            # Show sample of exported data
+            if items:
+                sample_item = items[0]
+                log_info(f"[bold]Sample item structure for {container_name}:[/bold]")
+                log_info(f"Keys: {list(sample_item.keys())}")
+                if 'id' in sample_item:
+                    log_info(f"ID: {sample_item['id']}")
+                if 'type' in sample_item:
+                    log_info(f"Type: {sample_item['type']}")
+                if partition_key and 'paths' in partition_key:
+                    partition_paths = partition_key['paths']
+                    log_info(f"Partition paths: {partition_paths}")
+
+            return True
+
+        except Exception as e:
+            log_error(f"Error processing container '{container_name}': {e}")
+            log_warning(
+                f"Skipping container '{container_name}' and continuing with others..."
+            )
+            return False
+
+    def _process_all_containers(self, containers_to_dump: list) -> list:
+        """Process all containers and return list of failed containers."""
+        failed_containers = []
+
+        for container_name in containers_to_dump:
+            if not self._process_container(container_name):
                 failed_containers.append(container_name)
-                continue
 
-        # Check if we have any successful containers
-        if not output_data["containers"]:
+        return failed_containers
+
+    def _validate_processing_results(self) -> None:
+        """Validate that at least some containers were processed successfully."""
+        if not self.output_data["containers"]:
             log_error("Error: No containers were successfully processed!")
             raise Exception("No containers were successfully processed")
 
-        # Ensure output directory exists
-        output_path = Path(dump_config.output_dir)
+    def _ensure_output_directory(self) -> None:
+        """Ensure the output directory exists."""
+        output_path = Path(self.dump_config.output_dir)
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             log_error(f"Error creating output directory: {e}")
             raise
 
-        # Write to JSON file
+    def _write_output_file(self) -> None:
+        """Write the output data to JSON file."""
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                if dump_config.pretty:
-                    json.dump(output_data, f, indent=2, ensure_ascii=False, default=str)
+            with open(self.dump_config.output_dir, 'w', encoding='utf-8') as f:
+                if self.dump_config.pretty:
+                    json.dump(self.output_data, f, indent=2, ensure_ascii=False, default=str)
                 else:
-                    json.dump(output_data, f, ensure_ascii=False, default=str)
+                    json.dump(self.output_data, f, ensure_ascii=False, default=str)
         except Exception as e:
             log_error(f"Error writing to output file: {e}")
             raise
 
-        # Display final summary
+    def _display_export_summary(self, failed_containers: list) -> None:
+        """Display the final export summary."""
         log_panel("[bold green]Export Summary[/bold green]", style="green")
         log_success(
-            f"Successfully exported {output_data['total_items']} items from "
-            f"{len(output_data['containers'])} containers to {dump_config.output_dir}"
+            f"Successfully exported {self.output_data['total_items']} items from "
+            f"{len(self.output_data['containers'])} containers to {self.dump_config.output_dir}"
         )
 
         if failed_containers:
@@ -183,7 +208,7 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
         table.add_column("Items", style="green")
         table.add_column("Partition Key", style="yellow")
 
-        for container_data in output_data["containers"]:
+        for container_data in self.output_data["containers"]:
             partition_key_info = "N/A"
             if container_data["partition_key"] and "paths" in container_data["partition_key"]:
                 partition_key_info = str(container_data["partition_key"]["paths"])
@@ -202,7 +227,33 @@ def dump_containers(db_config: DatabaseConfig, dump_config: DumpConfig):
                 f"Export completed with warnings. {len(failed_containers)} containers failed."
             )
 
-    except Exception as e:
-        log_error(f"Error: {e}")
-        log_info("Please check your CosmosDB connection parameters and container names.")
-        raise
+    def dump_containers(self) -> None:
+        """Main method to dump containers to JSON file."""
+        # Initialize client
+        self._initialize_client()
+
+        # Handle list containers only case
+        if self.dump_config.list_containers:
+            self._list_containers_only()
+            return
+
+        # Validate and determine containers to dump
+        containers_to_dump = self._validate_containers()
+
+        # Prepare output structure
+        self._prepare_output_structure(containers_to_dump)
+
+        # Process all containers
+        failed_containers = self._process_all_containers(containers_to_dump)
+
+        # Validate processing results
+        self._validate_processing_results()
+
+        # Ensure output directory exists
+        self._ensure_output_directory()
+
+        # Write output file
+        self._write_output_file()
+
+        # Display summary
+        self._display_export_summary(failed_containers)

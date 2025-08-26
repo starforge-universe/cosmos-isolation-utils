@@ -10,7 +10,7 @@ import click
 
 from .core import (
     ConnectionTester,
-    dump_containers,
+    ContainerDumper,
     upload_entries,
     delete_database,
     DatabaseConfig,
@@ -137,7 +137,9 @@ def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=
             list_containers=list_containers
         )
 
-        dump_containers(db_config, dump_config)
+        # Create container dumper instance and run dump
+        dumper = ContainerDumper(db_config, dump_config)
+        dumper.dump_containers()
     except Exception as e:
         log_error(f"Failed to dump containers: {e}")
         sys.exit(1)
