@@ -45,16 +45,19 @@ class TestCLI(unittest.TestCase):
 
     def test_cli_common_params(self):
         """Test that common parameters are available for all subcommands."""
-        # Test that endpoint, key, and database are required
-        result = self.runner.invoke(main, ['--help'])
+        # Test that subcommand help shows the connection parameters
+        result = self.runner.invoke(main, ['test', '--help'])
         self.assertEqual(result.exit_code, 0)
         self.assertIn('--endpoint', result.output)
         self.assertIn('--key', result.output)
         self.assertIn('--database', result.output)
         
-        # Test that subcommand help shows the common parameters
-        result = self.runner.invoke(main, ['-e', 'dummy', '-k', 'dummy', '-d', 'dummy', 'test', '--help'])
+        # Test that another subcommand also shows the connection parameters
+        result = self.runner.invoke(main, ['dump', '--help'])
         self.assertEqual(result.exit_code, 0)
+        self.assertIn('--endpoint', result.output)
+        self.assertIn('--key', result.output)
+        self.assertIn('--database', result.output)
 
 
 if __name__ == '__main__':

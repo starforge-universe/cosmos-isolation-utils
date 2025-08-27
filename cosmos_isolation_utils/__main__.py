@@ -27,16 +27,8 @@ from .core.logging_utils import log_bold, log_error
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="cosmos-isolation-utils")
-@click.option('--endpoint', '-e',
-              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
-@click.option('--key', '-k',
-              help='CosmosDB primary key (or set COSMOS_KEY env var)')
-@click.option('--database', '-d',
-              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
-@click.option('--allow-insecure', '-a', is_flag=True,
-              help='Allow insecure HTTPS requests (suppress warnings)')
 @click.pass_context
-def main(ctx, endpoint: str, key: str, database: str, allow_insecure: bool):
+def main(ctx):
     """
     CosmosDB Isolation Utilities - A unified CLI for managing CosmosDB databases.
     
@@ -47,6 +39,26 @@ def main(ctx, endpoint: str, key: str, database: str, allow_insecure: bool):
     - COSMOS_ENDPOINT: CosmosDB endpoint URL
     - COSMOS_KEY: CosmosDB primary key
     - COSMOS_DATABASE: CosmosDB database name
+    """
+    # Initialize context
+    ctx.ensure_object(dict)
+
+
+def _create_database_config(endpoint: str, key: str, database: str, allow_insecure: bool) -> DatabaseConfig:
+    """
+    Create a DatabaseConfig instance from command line parameters or environment variables.
+    
+    Args:
+        endpoint: Command line endpoint parameter (or None)
+        key: Command line key parameter (or None)
+        database: Command line database parameter (or None)
+        allow_insecure: Command line allow_insecure parameter
+        
+    Returns:
+        DatabaseConfig instance with validated connection parameters
+        
+    Raises:
+        SystemExit: If any required connection parameters are missing
     """
     # Get values from command line or environment variables
     final_endpoint = endpoint or os.environ.get('COSMOS_ENDPOINT')
@@ -69,31 +81,33 @@ def main(ctx, endpoint: str, key: str, database: str, allow_insecure: bool):
         log_error("\nPlease specify these parameters via command line options or environment variables.")
         sys.exit(1)
 
-    # Store common parameters in context
-    ctx.ensure_object(dict)
-    ctx.obj['endpoint'] = final_endpoint
-    ctx.obj['key'] = final_key
-    ctx.obj['database'] = final_database
-    ctx.obj['allow_insecure'] = allow_insecure
+    return DatabaseConfig(
+        endpoint=final_endpoint,
+        key=final_key,
+        database=final_database,
+        allow_insecure=allow_insecure
+    )
 
 
 @main.command()
+@click.option('--endpoint', '-e',
+              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
+@click.option('--key', '-k',
+              help='CosmosDB primary key (or set COSMOS_KEY env var)')
+@click.option('--database', '-d',
+              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
+@click.option('--allow-insecure', '-a', is_flag=True,
+              help='Allow insecure HTTPS requests (suppress warnings)')
 @click.option('--create-database', is_flag=True,
               help='Create database if it does not exist')
 @click.option('--force', '-f', is_flag=True,
               help='Skip confirmation prompts')
-@click.pass_context
-def test(ctx, create_database: bool, force: bool):
+def test(endpoint: str, key: str, database: str, allow_insecure: bool, create_database: bool, force: bool):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Test CosmosDB connection and list containers."""
     log_bold("Testing CosmosDB Connection", color="blue")
     try:
         # Create configuration objects
-        db_config = DatabaseConfig(
-            endpoint=ctx.obj['endpoint'],
-            key=ctx.obj['key'],
-            database=ctx.obj['database'],
-            allow_insecure=ctx.obj['allow_insecure']
-        )
+        db_config = _create_database_config(endpoint, key, database, allow_insecure)
         connection_config = ConnectionConfig(
             create_database=create_database,
             force=force
@@ -108,19 +122,21 @@ def test(ctx, create_database: bool, force: bool):
 
 
 @main.command()
+@click.option('--endpoint', '-e',
+              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
+@click.option('--key', '-k',
+              help='CosmosDB primary key (or set COSMOS_KEY env var)')
+@click.option('--database', '-d',
+              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
+@click.option('--allow-insecure', '-a', is_flag=True,
+              help='Allow insecure HTTPS requests (suppress warnings)')
 @click.option('--detailed', is_flag=True,
               help='Show detailed information for each container')
-@click.pass_context
-def status(ctx, detailed: bool):
+def status(endpoint: str, key: str, database: str, allow_insecure: bool, detailed: bool):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Show the status and statistics of all containers in a CosmosDB database."""
     try:
         # Create configuration objects
-        db_config = DatabaseConfig(
-            endpoint=ctx.obj['endpoint'],
-            key=ctx.obj['key'],
-            database=ctx.obj['database'],
-            allow_insecure=ctx.obj['allow_insecure']
-        )
+        db_config = _create_database_config(endpoint, key, database, allow_insecure)
         status_config = StatusConfig(
             detailed=detailed
         )
@@ -134,6 +150,14 @@ def status(ctx, detailed: bool):
 
 
 @main.command()
+@click.option('--endpoint', '-e',
+              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
+@click.option('--key', '-k',
+              help='CosmosDB primary key (or set COSMOS_KEY env var)')
+@click.option('--database', '-d',
+              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
+@click.option('--allow-insecure', '-a', is_flag=True,
+              help='Allow insecure HTTPS requests (suppress warnings)')
 @click.option('--containers', '-c',
               help='Comma-separated list of container names to dump (or "all" for all containers)')
 @click.option('--output', '-o', required=True,
@@ -142,18 +166,12 @@ def status(ctx, detailed: bool):
               help='Batch size for processing (default: 100)')
 @click.option('--pretty', '-p', is_flag=True,
               help='Pretty print JSON output')
-@click.pass_context
-def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-         pretty: bool):
+def dump(endpoint: str, key: str, database: str, allow_insecure: bool,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+         containers: str, output: str, batch_size: int, pretty: bool):
     """Dump all entries from multiple CosmosDB containers to a single JSON file."""
     try:
         # Create configuration objects
-        db_config = DatabaseConfig(
-            endpoint=ctx.obj['endpoint'],
-            key=ctx.obj['key'],
-            database=ctx.obj['database'],
-            allow_insecure=ctx.obj['allow_insecure']
-        )
+        db_config = _create_database_config(endpoint, key, database, allow_insecure)
         dump_config = DumpConfig(
             output_dir=output,
             containers=containers,
@@ -170,6 +188,14 @@ def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=
 
 
 @main.command()
+@click.option('--endpoint', '-e',
+              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
+@click.option('--key', '-k',
+              help='CosmosDB primary key (or set COSMOS_KEY env var)')
+@click.option('--database', '-d',
+              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
+@click.option('--allow-insecure', '-a', is_flag=True,
+              help='Allow insecure HTTPS requests (suppress warnings)')
 @click.option('--input', '-i', required=True,
               help='Input JSON file path')
 @click.option('--batch-size', '-b', default=100,
@@ -184,18 +210,13 @@ def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=
               help='Automatically create containers if they do not exist')
 @click.option('--containers', '-c',
               help='Comma-separated list of specific containers to upload')
-@click.pass_context
-def upload(ctx, input_file: str, batch_size: int, upsert: bool, dry_run: bool,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def upload(endpoint: str, key: str, database: str, allow_insecure: bool,  # pylint: disable=too-many-arguments,too-many-positional-arguments
+           input_file: str, batch_size: int, upsert: bool, dry_run: bool,
            force: bool, create_containers: bool, containers: str):
     """Upload entries from a multi-container JSON file to CosmosDB containers."""
     try:
         # Create configuration objects
-        db_config = DatabaseConfig(
-            endpoint=ctx.obj['endpoint'],
-            key=ctx.obj['key'],
-            database=ctx.obj['database'],
-            allow_insecure=ctx.obj['allow_insecure']
-        )
+        db_config = _create_database_config(endpoint, key, database, allow_insecure)
         upload_config = UploadConfig(
             input_file=input_file,
             batch_size=batch_size,
@@ -215,21 +236,23 @@ def upload(ctx, input_file: str, batch_size: int, upsert: bool, dry_run: bool,  
 
 
 @main.command()
+@click.option('--endpoint', '-e',
+              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
+@click.option('--key', '-k',
+              help='CosmosDB primary key (or set COSMOS_KEY env var)')
+@click.option('--database', '-d',
+              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
+@click.option('--allow-insecure', '-a', is_flag=True,
+              help='Allow insecure HTTPS requests (suppress warnings)')
 @click.option('--list-databases', '-l', is_flag=True,
               help='List all existing databases')
 @click.option('--force', '-f', is_flag=True,
               help='Skip confirmation prompts for deletion')
-@click.pass_context
-def delete_db(ctx, list_databases: bool, force: bool):
+def delete_db(endpoint: str, key: str, database: str, allow_insecure: bool, list_databases: bool, force: bool):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Delete CosmosDB databases with safety confirmations."""
     try:
         # Create configuration objects
-        db_config = DatabaseConfig(
-            endpoint=ctx.obj['endpoint'],
-            key=ctx.obj['key'],
-            database=ctx.obj['database'],  # Use the database name from CLI context
-            allow_insecure=ctx.obj['allow_insecure']
-        )
+        db_config = _create_database_config(endpoint, key, database, allow_insecure)
         delete_config = DeleteConfig(
             force=force,
             list_only=list_databases
