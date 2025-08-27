@@ -6,25 +6,20 @@ import json
 from pathlib import Path
 from rich.table import Table
 
-from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, DumpConfig
 from .logging_utils import (
     log_info, log_success, log_error, log_warning, log_panel, console, log_with_color
 )
+from .base_executor import BaseSubcommandExecutor
 
 
-class ContainerDumper:  # pylint: disable=too-few-public-methods
+class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
     """Dumper class for CosmosDB container operations."""
 
     def __init__(self, db_config: DatabaseConfig):
         """Initialize the container dumper with database configuration."""
-        self.db_config = db_config
-        self.client = None
+        super().__init__(db_config)
         self.output_data = None
-
-    def _initialize_client(self) -> None:
-        """Initialize the CosmosDB client."""
-        self.client = CosmosDBClient(self.db_config)
 
     def _list_containers_only(self) -> None:
         """Display list of available containers and return early."""
@@ -228,6 +223,9 @@ class ContainerDumper:  # pylint: disable=too-few-public-methods
 
     def dump_containers(self, dump_config: DumpConfig) -> None:
         """Main method to dump containers to JSON file."""
+        # Display connection info
+        self._display_connection_info()
+
         # Initialize client
         self._initialize_client()
 

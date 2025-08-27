@@ -9,21 +9,20 @@ from azure.cosmos.exceptions import CosmosHttpResponseError
 from rich.table import Table
 from rich.prompt import Confirm
 
-from .cosmos_client import CosmosDBClient
 from .logging_utils import (
     log_info, log_success, log_warning, log_error, log_panel,
     log_checkmark, log_upload_summary, log_results_summary, console
 )
 from .config import DatabaseConfig, UploadConfig
+from .base_executor import BaseSubcommandExecutor
 
 
-class ContainerUploader:  # pylint: disable=too-few-public-methods
+class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
     """Uploader class for CosmosDB container operations."""
 
     def __init__(self, db_config: DatabaseConfig):
         """Initialize the container uploader with database configuration."""
-        self.db_config = db_config
-        self.client = None
+        super().__init__(db_config)
         self.data = None
         self.containers_to_process = []
         self.available_containers = []
@@ -103,15 +102,6 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             else:
                 raise Exception("Invalid JSON structure. Expected 'containers' array or legacy format.")
 
-    def _initialize_client(self) -> None:
-        """Initialize the CosmosDB client."""
-        try:
-            self.client = CosmosDBClient(self.db_config)
-        except Exception as e:
-            log_error(f"Error initializing CosmosDB client: {e}")
-            log_warning("Please check your connection parameters and ensure the database exists.")
-            raise
-
     def _check_database_existence(self, upload_config: UploadConfig) -> None:
         """Check if database exists and create if needed."""
         try:
@@ -182,21 +172,12 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
 
         console.print(table)
 
-    def _confirm_upload(self, upload_config: UploadConfig) -> bool:
-        """Confirm upload with user unless force flag is used."""
-        if not upload_config.force and not upload_config.dry_run:
-            if not Confirm.ask("Do you want to proceed with the upload?"):
-                log_warning("Upload cancelled.")
-                return False
-        return True
-
-    def _handle_dry_run(self, upload_config: UploadConfig) -> None:
+    def _handle_dry_run(self) -> None:
         """Handle dry run mode."""
-        if upload_config.dry_run:
-            total_items = self._calculate_total_items(self.containers_to_process)
-            log_success(
-                f"Dry run completed. Would upload {total_items} items to {len(self.containers_to_process)} containers"
-            )
+        total_items = self._calculate_total_items(self.containers_to_process)
+        log_success(
+            f"Dry run completed. Would upload {total_items} items to {len(self.containers_to_process)} containers"
+        )
 
     def _create_container_if_needed(self, container_name: str, partition_key, upload_config: UploadConfig) -> bool:  # pylint: disable=too-many-return-statements
         """Create a container if it doesn't exist and creation is requested."""
@@ -232,8 +213,7 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
                         simple_pk = PartitionKey(path="pk")
                         self.client.create_container(container_name, simple_pk)
                         log_checkmark(
-                            f"Successfully created container '{container_name}'"
-                            " with simple partition key 'pk'"
+                            f"Successfully created container '{container_name}' with simple partition key 'pk'"
                         )
                         log_warning(
                             "Note: Container created with partition key 'pk'. "
@@ -246,10 +226,7 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
             else:
                 log_info("Creating container with default partition key")
                 try:
-                    self.client.create_container(
-                        container_name,
-                        PartitionKey(path="/id")
-                    )
+                    self.client.create_container(container_name, PartitionKey(path="/id"))
                     log_checkmark(f"Successfully created container '{container_name}'")
                     return True
                 except Exception as e:
@@ -277,13 +254,9 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
 
             try:
                 if upload_config.upsert:
-                    uploaded_items = self.client.upsert_items_batch(
-                        container_name, items, upload_config.batch_size
-                    )
+                    uploaded_items = self.client.upsert_items_batch(container_name, items, upload_config.batch_size)
                 else:
-                    uploaded_items = self.client.create_items_batch(
-                        container_name, items, upload_config.batch_size
-                    )
+                    uploaded_items = self.client.create_items_batch(container_name, items, upload_config.batch_size)
 
                 log_checkmark(f"Successfully uploaded {len(uploaded_items)} items to container '{container_name}'")
                 return True, len(uploaded_items)
@@ -339,6 +312,12 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
 
     def upload_entries(self, upload_config: UploadConfig) -> None:
         """Main method to upload entries to CosmosDB containers."""
+        # Display connection info
+        self._display_connection_info()
+
+        # Initialize client
+        self._initialize_client()
+
         # Validate input file
         self._validate_input_file(upload_config)
 
@@ -348,9 +327,6 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
         # Parse container data
         self._parse_container_data(upload_config)
 
-        # Initialize client
-        self._initialize_client()
-
         # Check database existence
         self._check_database_existence(upload_config)
 
@@ -358,12 +334,14 @@ class ContainerUploader:  # pylint: disable=too-few-public-methods
         self._display_upload_summary(upload_config)
 
         # Confirm upload
-        if not self._confirm_upload(upload_config):
-            return
+        if not upload_config.force and not upload_config.dry_run:
+            if not Confirm.ask("Do you want to proceed with the upload?"):
+                log_warning("Upload cancelled.")
+                return
 
         # Handle dry run
-        self._handle_dry_run(upload_config)
         if upload_config.dry_run:
+            self._handle_dry_run()
             return
 
         # Process all containers

@@ -6,25 +6,20 @@ from typing import List, Dict, Any
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, StatusConfig
 from .logging_utils import (
-    log_info, log_warning, log_panel, console, log_with_color
+    log_error, log_info, log_warning, log_panel, console, log_with_color
 )
+from .base_executor import BaseSubcommandExecutor
 
 
-class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
+class ContainerStatusAnalyzer(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
     """Analyzer class for container status and statistics."""
 
     def __init__(self, db_config: DatabaseConfig):
         """Initialize the analyzer with database configuration."""
-        self.db_config = db_config
-        self.client = None
+        super().__init__(db_config)
         self.container_stats = []
-
-    def _initialize_client(self) -> None:
-        """Initialize the CosmosDB client."""
-        self.client = CosmosDBClient(self.db_config)
 
     def _gather_container_statistics(self) -> None:
         """Gather container statistics with progress tracking."""
@@ -34,8 +29,32 @@ class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
             console=console
         ) as progress:
             task = progress.add_task("Gathering container statistics...", total=None)
-            self.container_stats = self.client.get_all_containers_stats()
-            progress.update(task, completed=True)
+
+            try:
+                containers = self.client.list_containers()
+                stats = []
+
+                for container_name in containers:
+                    try:
+                        container_stats = self.client.get_container_properties(container_name)
+                        stats.append(container_stats)
+                    except Exception as e:
+                        log_warning(f"Warning: Could not get stats for container '{container_name}': {e}")
+                        # Add basic info even if stats fail
+                        stats.append({
+                            "name": container_name,
+                            "item_count": "Unknown",
+                            "partition_key": "Unknown",
+                            "last_modified": "Unknown",
+                            "etag": "Unknown"
+                        })
+
+                self.container_stats = stats
+                progress.update(task, completed=True)
+
+            except Exception as e:
+                log_error(f"Error getting container statistics: {e}")
+                raise
 
     def _display_database_header(self) -> None:
         """Display the database header panel."""
@@ -180,8 +199,13 @@ class ContainerStatusAnalyzer:  # pylint: disable=too-few-public-methods
 
     def analyze(self, status_config: StatusConfig) -> None:
         """Main method to analyze and display container status."""
-        # Initialize and gather data
+        # Display connection info
+        self._display_connection_info()
+
+        # Initialize client
         self._initialize_client()
+
+        # Display database header and gather data
         self._display_database_header()
         self._gather_container_statistics()
 

@@ -5,37 +5,19 @@ Core connection testing functionality for CosmosDB.
 from azure.cosmos.exceptions import CosmosHttpResponseError
 from rich.prompt import Confirm
 
-from .cosmos_client import CosmosDBClient
 from .config import DatabaseConfig, ConnectionConfig
 from .logging_utils import (
     log_info, log_success, log_error, log_warning, log_step, log_checkmark, log_with_color
 )
+from .base_executor import BaseSubcommandExecutor
 
 
-class ConnectionTester:  # pylint: disable=too-few-public-methods
+class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
     """Tester class for CosmosDB connection and database operations."""
 
-    def __init__(self, db_config: DatabaseConfig):
+    def __init__(self, db_config: DatabaseConfig):  # pylint: disable=useless-parent-delegation
         """Initialize the connection tester with database configuration."""
-        self.db_config = db_config
-        self.client = None
-
-    def _display_connection_info(self, connection_config: ConnectionConfig) -> None:
-        """Display connection configuration information."""
-        log_info(f"Endpoint: {self.db_config.endpoint}")
-        log_info(f"Database: {self.db_config.database}")
-        log_info(f"Allow insecure: {self.db_config.allow_insecure}")
-        log_info(f"Create database if missing: {connection_config.create_database}")
-
-    def _initialize_client(self) -> None:
-        """Initialize the CosmosDB client."""
-        log_step(1, "Initializing CosmosDB client...")
-        try:
-            self.client = CosmosDBClient(self.db_config)
-            log_checkmark("CosmosDB client initialized")
-        except Exception as e:
-            log_error(f"Error initializing client: {e}")
-            raise
+        super().__init__(db_config)
 
     def _test_database_access(self, connection_config: ConnectionConfig) -> list:
         """Test database access and return list of containers."""
@@ -103,7 +85,7 @@ class ConnectionTester:  # pylint: disable=too-few-public-methods
     def test_connection(self, connection_config: ConnectionConfig) -> None:
         """Main method to test CosmosDB connection and list containers."""
         # Display connection information
-        self._display_connection_info(connection_config)
+        self._display_connection_info()
 
         # Initialize client
         self._initialize_client()
@@ -113,3 +95,7 @@ class ConnectionTester:  # pylint: disable=too-few-public-methods
 
         # Display containers
         self._display_containers(containers)
+
+    def execute(self, connection_config: ConnectionConfig) -> None:
+        """Execute the test connection operation."""
+        self.test_connection(connection_config)

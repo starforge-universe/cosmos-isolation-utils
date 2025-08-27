@@ -11,21 +11,16 @@ from .logging_utils import (
     log_info, log_success, log_warning, log_error,
     log_panel, log_warning_icon, console
 )
-from .cosmos_client import CosmosDBClient
+from .base_executor import BaseSubcommandExecutor
 
 
 
-class DatabaseDeleter:  # pylint: disable=too-few-public-methods
+class DatabaseDeleter(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
     """Class for deleting CosmosDB databases."""
 
-    def __init__(self, db_config: DatabaseConfig):
+    def __init__(self, db_config: DatabaseConfig):  # pylint: disable=useless-parent-delegation
         """Initialize the database deleter with database configuration."""
-        self.db_config = db_config
-        self.client = None
-
-    def _initialize_client(self) -> None:
-        """Initialize the CosmosDB client."""
-        self.client = CosmosDBClient(self.db_config)
+        super().__init__(db_config)
 
     def _list_databases(self) -> list:
         """List all databases in the CosmosDB account."""
@@ -153,6 +148,9 @@ class DatabaseDeleter:  # pylint: disable=too-few-public-methods
 
     def delete_database(self, delete_config: DeleteConfig) -> None:
         """Main method to handle database deletion operations."""
+        # Display connection info
+        self._display_connection_info()
+
         # Initialize client
         self._initialize_client()
 
@@ -160,3 +158,7 @@ class DatabaseDeleter:  # pylint: disable=too-few-public-methods
             self._handle_list_only_mode()
         else:
             self._handle_default_mode(delete_config)
+
+    def execute(self, delete_config: DeleteConfig) -> None:
+        """Execute the delete database operation."""
+        self.delete_database(delete_config)
