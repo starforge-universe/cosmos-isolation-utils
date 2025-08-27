@@ -54,10 +54,10 @@ where = ["."]
 include = ["cosmos_isolation_utils*"]
 
 [project.scripts]
-cosmos-isolation-utils = "cosmos_isolation_utils.cli:main"
+cosmos-isolation-utils = "cosmos_isolation_utils:main"
 
 [project.entry-points."console_scripts"]
-cosmos-isolation-utils = "cosmos_isolation_utils.cli:main"
+cosmos-isolation-utils = "cosmos_isolation_utils:main"
 
 
 

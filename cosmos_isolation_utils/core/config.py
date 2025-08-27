@@ -37,7 +37,6 @@ class DumpConfig:
     containers: Optional[str] = None
     batch_size: int = 100
     pretty: bool = False
-    list_containers: bool = False
 
 
 @dataclass

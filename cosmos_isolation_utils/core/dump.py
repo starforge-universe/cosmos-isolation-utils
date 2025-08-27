@@ -21,18 +21,6 @@ class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public
         super().__init__(db_config)
         self.output_data = None
 
-    def _list_containers_only(self) -> None:
-        """Display list of available containers and return early."""
-        containers_list = self.client.list_containers()
-        table = Table(title="Available Containers")
-        table.add_column("Container Name", style="cyan")
-        table.add_column("Index", style="green")
-
-        for i, container_name in enumerate(containers_list, 1):
-            table.add_row(container_name, str(i))
-
-        console.print(table)
-
     def _validate_containers(self, dump_config: DumpConfig) -> list:
         """Validate and determine which containers to dump."""
         if not dump_config.containers:
@@ -228,11 +216,6 @@ class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public
 
         # Initialize client
         self._initialize_client()
-
-        # Handle list containers only case
-        if dump_config.list_containers:
-            self._list_containers_only()
-            return
 
         # Validate and determine containers to dump
         containers_to_dump = self._validate_containers(dump_config)

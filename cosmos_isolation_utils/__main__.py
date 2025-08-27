@@ -115,11 +115,9 @@ def status(ctx, detailed: bool):
               help='Batch size for processing (default: 100)')
 @click.option('--pretty', '-p', is_flag=True,
               help='Pretty print JSON output')
-@click.option('--list-containers', '-l', is_flag=True,
-              help='List all available containers')
 @click.pass_context
 def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-         pretty: bool, list_containers: bool):
+         pretty: bool):
     """Dump all entries from multiple CosmosDB containers to a single JSON file."""
     try:
         # Create configuration objects
@@ -133,8 +131,7 @@ def dump(ctx, containers: str, output: str, batch_size: int,  # pylint: disable=
             output_dir=output,
             containers=containers,
             batch_size=batch_size,
-            pretty=pretty,
-            list_containers=list_containers
+            pretty=pretty
         )
 
         # Create container dumper instance and run dump
