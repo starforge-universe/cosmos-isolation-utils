@@ -30,7 +30,7 @@ class TestCLI(unittest.TestCase):
         """Test that the CLI requires all required parameters."""
         result = self.runner.invoke(main, ['test'])
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn('Missing option', result.output)
+        self.assertIn('Missing required connection parameters', result.output)
 
     def test_cli_subcommands(self):
         """Test that all subcommands are available."""

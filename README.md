@@ -99,7 +99,6 @@ cosmos-isolation-utils -e <endpoint> -k <key> -d <database> dump [options]
 - `-o, --output`: Output JSON file path (required)
 - `-b, --batch-size`: Batch size for processing (default: 100)
 - `-p, --pretty`: Pretty print JSON output
-- `-l, --list-containers`: List all available containers
 
 **Examples:**
 ```bash

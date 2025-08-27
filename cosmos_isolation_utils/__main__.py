@@ -5,6 +5,7 @@ Main entry point for the cosmos-isolation-utils CLI tool.
 This module provides a unified command-line interface for all CosmosDB isolation utilities.
 """
 
+import os
 import sys
 import click
 
@@ -26,12 +27,12 @@ from .core.logging_utils import log_bold, log_error
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="cosmos-isolation-utils")
-@click.option('--endpoint', '-e', required=True,
-              help='CosmosDB endpoint URL')
-@click.option('--key', '-k', required=True,
-              help='CosmosDB primary key')
-@click.option('--database', '-d', required=True,
-              help='CosmosDB database name')
+@click.option('--endpoint', '-e',
+              help='CosmosDB endpoint URL (or set COSMOS_ENDPOINT env var)')
+@click.option('--key', '-k',
+              help='CosmosDB primary key (or set COSMOS_KEY env var)')
+@click.option('--database', '-d',
+              help='CosmosDB database name (or set COSMOS_DATABASE env var)')
 @click.option('--allow-insecure', '-a', is_flag=True,
               help='Allow insecure HTTPS requests (suppress warnings)')
 @click.pass_context
@@ -41,12 +42,38 @@ def main(ctx, endpoint: str, key: str, database: str, allow_insecure: bool):
     
     This tool provides various utilities for testing, monitoring, and managing
     CosmosDB databases in isolation environments.
+    
+    Connection parameters can be specified via command line options or environment variables:
+    - COSMOS_ENDPOINT: CosmosDB endpoint URL
+    - COSMOS_KEY: CosmosDB primary key
+    - COSMOS_DATABASE: CosmosDB database name
     """
+    # Get values from command line or environment variables
+    final_endpoint = endpoint or os.environ.get('COSMOS_ENDPOINT')
+    final_key = key or os.environ.get('COSMOS_KEY')
+    final_database = database or os.environ.get('COSMOS_DATABASE')
+
+    # Validate that all required parameters are available
+    missing_params = []
+    if not final_endpoint:
+        missing_params.append('endpoint (--endpoint/-e or COSMOS_ENDPOINT)')
+    if not final_key:
+        missing_params.append('key (--key/-k or COSMOS_KEY)')
+    if not final_database:
+        missing_params.append('database (--database/-d or COSMOS_DATABASE)')
+
+    if missing_params:
+        log_error("Missing required connection parameters:")
+        for param in missing_params:
+            log_error(f"  - {param}")
+        log_error("\nPlease specify these parameters via command line options or environment variables.")
+        sys.exit(1)
+
     # Store common parameters in context
     ctx.ensure_object(dict)
-    ctx.obj['endpoint'] = endpoint
-    ctx.obj['key'] = key
-    ctx.obj['database'] = database
+    ctx.obj['endpoint'] = final_endpoint
+    ctx.obj['key'] = final_key
+    ctx.obj['database'] = final_database
     ctx.obj['allow_insecure'] = allow_insecure
 
 
