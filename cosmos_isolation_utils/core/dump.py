@@ -211,12 +211,6 @@ class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public
 
     def dump_containers(self, dump_config: DumpConfig) -> None:
         """Main method to dump containers to JSON file."""
-        # Display connection info
-        self._display_connection_info()
-
-        # Initialize client
-        self._initialize_client()
-
         # Validate and determine containers to dump
         containers_to_dump = self._validate_containers(dump_config)
 

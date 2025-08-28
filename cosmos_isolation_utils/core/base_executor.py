@@ -5,12 +5,17 @@ This module provides a common superclass for all subcommand implementations,
 ensuring consistent initialization patterns and client management.
 """
 
-from typing import Optional
-from azure.cosmos import PartitionKey
+from typing import Dict, List, Any
+from azure.cosmos.database import DatabaseProxy
+import urllib3
+from azure.cosmos import PartitionKey, CosmosClient
+from azure.cosmos.exceptions import CosmosHttpResponseError
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .config import DatabaseConfig
-from .cosmos_client import CosmosDBClient
-from .logging_utils import log_info
+from .logging_utils import (
+    log_info, log_error, log_warning, log_success, console
+)
 
 
 class BaseSubcommandExecutor:
@@ -31,7 +36,12 @@ class BaseSubcommandExecutor:
             db_config: Database connection configuration
         """
         self._db_config = db_config
-        self._client: Optional[CosmosDBClient] = None
+        self._client: CosmosClient = None
+        self._database: DatabaseProxy = None
+        
+        # Automatically display connection info and initialize client
+        self._display_connection_info()
+        self._initialize_client()
 
     @property
     def db_config(self) -> DatabaseConfig:
@@ -42,11 +52,16 @@ class BaseSubcommandExecutor:
         """
         Initialize the CosmosDB client.
 
-        This method creates a new CosmosDBClient instance using the stored
+        This method creates a new CosmosClient instance using the stored
         database configuration. It should be called before any operations
         that require the client.
         """
-        self._client = CosmosDBClient(self._db_config)
+        # Control HTTPS verification warnings
+        if self._db_config.allow_insecure:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        self._client = CosmosClient(self._db_config.endpoint, self._db_config.key)
+        self._database = self._client.get_database_client(self._db_config.database)
 
     def _display_connection_info(self) -> None:
         """
@@ -57,6 +72,19 @@ class BaseSubcommandExecutor:
         """
         log_info(f"Endpoint: {self._db_config.endpoint}")
         log_info(f"Allow insecure: {self._db_config.allow_insecure}")
+
+    def _filter_internal_attributes(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        """Filter out CosmosDB internal attributes from an item."""
+        internal_attributes = {'_rid', '_self', '_etag', '_attachments', '_ts'}
+        return {k: v for k, v in item.items() if k not in internal_attributes}
+
+    def _filter_items_batch(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Filter out CosmosDB internal attributes from a batch of items."""
+        return [self._filter_internal_attributes(item) for item in items]
+
+    def get_container_client(self, container_name: str):
+        """Get a container client for the specified container."""
+        return self._database.get_container_client(container_name)
 
     def create_container(self, container_name: str, partition_key_paths: list[str]) -> None:
         """
@@ -70,9 +98,6 @@ class BaseSubcommandExecutor:
             partition_key_paths: List of strings representing partition key paths, 
                                 or a single string for a single path
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
         # Convert string to list if needed
         if isinstance(partition_key_paths, str):
             partition_key_paths = [partition_key_paths]
@@ -80,7 +105,7 @@ class BaseSubcommandExecutor:
             raise ValueError(f"Invalid partition key paths format: {partition_key_paths}")
         
         pk = self._create_partition_key(partition_key_paths)
-        self._client.create_container(container_name, pk)
+        self._database.create_container(id=container_name, partition_key=pk)
 
     def list_containers(self) -> list[str]:
         """
@@ -95,10 +120,8 @@ class BaseSubcommandExecutor:
         Raises:
             RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
-        return self._client.list_containers()
+        containers = list(self._database.list_containers())
+        return [container['id'] for container in containers]
 
     def get_container_properties(self, container_name: str) -> dict[str, any]:
         """
@@ -113,13 +136,9 @@ class BaseSubcommandExecutor:
         Returns:
             Dictionary containing container properties
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
-        return self._client.get_container_properties(container_name)
+        container = self.get_container_client(container_name)
+        return container.read()
 
     def create_database_if_not_exists(self, database_name: str):
         """
@@ -134,12 +153,7 @@ class BaseSubcommandExecutor:
         Returns:
             Database object from the Azure SDK
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
         return self._client.create_database_if_not_exists(database_name)
 
     def process_items_batch(self, container_name: str, items: list[dict[str, any]], 
@@ -159,16 +173,35 @@ class BaseSubcommandExecutor:
         Returns:
             List of processed items
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
-        if upsert:
-            return self._client.upsert_items_batch(container_name, items, batch_size)
-        else:
-            return self._client.create_items_batch(container_name, items, batch_size)
+        container = self.get_container_client(container_name)
+        processed_items = []
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            operation = "Upserting" if upsert else "Creating"
+            task = progress.add_task(f"{operation} items in {container_name}...", total=len(items))
+
+            for i in range(0, len(items), batch_size):
+                batch = items[i:i + batch_size]
+
+                for item in batch:
+                    try:
+                        if upsert:
+                            processed_item = container.upsert_item(item)
+                        else:
+                            processed_item = container.create_item(item)
+                        processed_items.append(processed_item)
+                        progress.advance(task)
+                    except CosmosHttpResponseError as e:
+                        log_error(f"Error {operation.lower()} item: {e}")
+                        # Continue with other items
+                        progress.advance(task)
+
+        return processed_items
 
     def get_all_items(self, container_name: str) -> list[dict[str, any]]:
         """
@@ -183,13 +216,38 @@ class BaseSubcommandExecutor:
         Returns:
             List of items from the container
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
-        return self._client.get_all_items(container_name)
+        container = self.get_container_client(container_name)
+
+        # First, get the total count
+        count_query = "SELECT VALUE COUNT(1) FROM c"
+        count_result = list(container.query_items(query=count_query, enable_cross_partition_query=True))
+        total_count = count_result[0] if count_result else 0
+
+        if total_count == 0:
+            log_warning(f"No items found in container '{container_name}'")
+            return []
+
+        log_success(f"Found {total_count} items in container '{container_name}'")
+
+        # Get all items with progress tracking
+        all_items = []
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task(f"Fetching items from {container_name}...", total=total_count)
+
+            query = "SELECT * FROM c"
+            items = container.query_items(query=query, enable_cross_partition_query=True)
+
+            for item in items:
+                filtered_item = self._filter_internal_attributes(item)
+                all_items.append(filtered_item)
+                progress.advance(task)
+
+        return all_items
 
     def list_databases(self) -> list[str]:
         """
@@ -201,13 +259,9 @@ class BaseSubcommandExecutor:
         Returns:
             List of database names as strings
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
-        return self._client.list_databases()
+        databases = list(self._client.list_databases())
+        return [db['id'] for db in databases]
 
     def get_database_info(self, database_name: str) -> dict[str, any]:
         """
@@ -222,13 +276,16 @@ class BaseSubcommandExecutor:
         Returns:
             Dictionary containing database properties and container list
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
-        return self._client.get_database_info(database_name)
+        database = self._client.get_database_client(database_name)
+        properties = database.read()
+        containers = list(database.list_containers())
+
+        return {
+            "properties": properties,
+            "containers": containers,
+            "container_count": len(containers)
+        }
 
     def delete_database(self, database_name: str) -> None:
         """
@@ -240,12 +297,7 @@ class BaseSubcommandExecutor:
         Args:
             database_name: Name of the database to delete
             
-        Raises:
-            RuntimeError: If client is not initialized
         """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Call _initialize_client() first.")
-        
         self._client.delete_database(database_name)
 
     def _create_partition_key(self, paths: list[str]) -> PartitionKey:

@@ -84,18 +84,8 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
 
     def test_connection(self, connection_config: ConnectionConfig) -> None:
         """Main method to test CosmosDB connection and list containers."""
-        # Display connection information
-        self._display_connection_info()
-
-        # Initialize client
-        self._initialize_client()
-
         # Test database access
         containers = self._test_database_access(connection_config)
 
         # Display containers
         self._display_containers(containers)
-
-    def execute(self, connection_config: ConnectionConfig) -> None:
-        """Execute the test connection operation."""
-        self.test_connection(connection_config)

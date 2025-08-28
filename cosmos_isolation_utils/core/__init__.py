@@ -8,7 +8,6 @@ including upload, download, deletion, and status checking.
 from .config import (
     DatabaseConfig, UploadConfig, DumpConfig, DeleteConfig, StatusConfig, ConnectionConfig
 )
-from .cosmos_client import CosmosDBClient
 from .base_executor import BaseSubcommandExecutor
 from .delete import DatabaseDeleter
 from .dump import ContainerDumper
@@ -23,7 +22,6 @@ __all__ = [
     'DeleteConfig',
     'StatusConfig',
     'ConnectionConfig',
-    'CosmosDBClient',
     'BaseSubcommandExecutor',
     'DatabaseDeleter',
     'ContainerDumper',

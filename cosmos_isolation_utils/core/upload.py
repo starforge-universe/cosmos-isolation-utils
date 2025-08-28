@@ -295,12 +295,6 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
 
     def upload_entries(self, upload_config: UploadConfig) -> None:
         """Main method to upload entries to CosmosDB containers."""
-        # Display connection info
-        self._display_connection_info()
-
-        # Initialize client
-        self._initialize_client()
-
         # Validate input file
         self._validate_input_file(upload_config)
 

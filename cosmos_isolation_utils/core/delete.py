@@ -148,17 +148,7 @@ class DatabaseDeleter(BaseSubcommandExecutor):  # pylint: disable=too-few-public
 
     def delete_database(self, delete_config: DeleteConfig) -> None:
         """Main method to handle database deletion operations."""
-        # Display connection info
-        self._display_connection_info()
-
-        # Initialize client
-        self._initialize_client()
-
         if delete_config.list_only:
             self._handle_list_only_mode()
         else:
             self._handle_default_mode(delete_config)
-
-    def execute(self, delete_config: DeleteConfig) -> None:
-        """Execute the delete database operation."""
-        self.delete_database(delete_config)

@@ -199,12 +199,6 @@ class ContainerStatusAnalyzer(BaseSubcommandExecutor):  # pylint: disable=too-fe
 
     def analyze(self, status_config: StatusConfig) -> None:
         """Main method to analyze and display container status."""
-        # Display connection info
-        self._display_connection_info()
-
-        # Initialize client
-        self._initialize_client()
-
         # Display database header and gather data
         self._display_database_header()
         self._gather_container_statistics()
