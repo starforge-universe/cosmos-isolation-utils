@@ -2,95 +2,63 @@
 Core connection testing functionality for CosmosDB.
 """
 
-import sys
 from azure.cosmos.exceptions import CosmosHttpResponseError
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Confirm
 
-from .cosmos_client import CosmosDBClient
+from .config import DatabaseConfig, ConnectionConfig
+from .logging_utils import (
+    log_info, log_success, log_error, log_warning, log_step, log_with_color
+)
+from .base_executor import BaseSubcommandExecutor
 
-console = Console()
 
+class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
+    """Tester class for CosmosDB connection and database operations."""
 
-def test_connection(endpoint: str, key: str, database: str, allow_insecure: bool,
-                   create_database: bool, force: bool):
-    """Test CosmosDB connection and list containers."""
-    
-    console.print(f"Endpoint: {endpoint}")
-    console.print(f"Database: {database}")
-    console.print(f"Allow insecure: {allow_insecure}")
-    console.print(f"Create database if missing: {create_database}")
+    def __init__(self, db_config: DatabaseConfig):  # pylint: disable=useless-parent-delegation
+        """Initialize the connection tester with database configuration."""
+        super().__init__(db_config)
 
-    console.print("\n[cyan]Step 1: Initializing CosmosDB client...[/cyan]")
-    # Test connection using our custom client
-    try:
-        client = CosmosDBClient(endpoint, key, database, allow_insecure)
-        console.print("[green]✓ CosmosDB client initialized[/green]")
-    except Exception as e:
-        console.print(f"[red]Error initializing client: {e}[/red]")
-        raise
+    def _test_database_access(self, connection_config: ConnectionConfig) -> list:
+        """Test database access and return list of containers."""
+        log_info("  Attempting to list containers...")
 
-    console.print("\n[cyan]Step 2: Testing database access...[/cyan]")
-    # Test if we can access the database by listing containers
-    console.print("[cyan]  Attempting to list containers...[/cyan]")
+        try:
+            containers = self.list_containers()
+            log_success(f"✓ Successfully connected to database: {self.db_config.database}")
+            return containers
+        except CosmosHttpResponseError as e:
+            if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
+                return self._handle_database_not_found(e, connection_config)
 
-    try:
-        containers = client.list_containers()
-        console.print(f"[green]✓ Successfully connected to database: {database}[/green]")
-
-        console.print("\n[cyan]Step 3: Listing containers...[/cyan]")
-        if containers:
-            console.print(f"\n[bold]Available containers ({len(containers)}):[/bold]")
-            for i, container in enumerate(containers, 1):
-                console.print(f"  {i}. {container}")
-        else:
-            console.print("\n[yellow]No containers found in the database.[/yellow]")
-
-        console.print("\n[green]Connection test completed successfully![/green]")
-
-    except CosmosHttpResponseError as e:
-        if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
-            console.print(
-                f"[yellow]Database '{database}' does not exist or is not accessible.[/yellow]"
-            )
-
-            if create_database:
-                if not force:
-                    if not Confirm.ask(f"Do you want to create database '{database}'?"):
-                        console.print("[yellow]Database creation cancelled.[/yellow]")
-                        return  # User cancelled, exit cleanly
-
-                try:
-                    console.print(f"[cyan]Creating database '{database}'...[/cyan]")
-                    client.client.create_database_if_not_exists(database)
-                    console.print(f"[green]✓ Database '{database}' created successfully[/green]")
-
-                    # Try listing containers again
-                    console.print("\n[cyan]Testing database access after creation...[/cyan]")
-                    containers = client.list_containers()
-                    console.print(
-                        f"[green]✓ Successfully connected to newly created database: {database}[/green]"
-                    )
-
-                    if containers:
-                        console.print(f"\n[bold]Available containers ({len(containers)}):[/bold]")
-                        for i, container in enumerate(containers, 1):
-                            console.print(f"  {i}. {container}")
-                    else:
-                        console.print("\n[yellow]No containers found in the new database.[/yellow]")
-
-                    console.print("\n[green]Connection test completed successfully![/green]")
-
-                except Exception as e2:
-                    console.print(f"[red]Error creating database '{database}': {e2}[/red]")
-                    raise
-            else:
-                console.print(
-                    f"[red]Database '{database}' does not exist. "
-                    f"Use --create-database flag to create it.[/red]"
-                )
-                raise Exception(f"Database '{database}' does not exist")
-        else:
-            console.print(f"[red]Error accessing database: {e}[/red]")
+            log_error(f"Error accessing database: {e}")
             raise
+
+    def _handle_database_not_found(self, error: CosmosHttpResponseError, connection_config: ConnectionConfig) -> list:
+        """Handle the case when the database doesn't exist."""
+        log_warning(f"Database '{self.db_config.database}' does not exist or is not accessible.")
+
+        if connection_config.create_database:
+            self.create_database(connection_config.force)
+            return self._test_database_access(connection_config)
+
+        log_error(f"Database '{self.db_config.database}' does not exist. Use --create-database flag to create it.")
+        raise Exception(f"Database '{self.db_config.database}' does not exist") from error
+
+    def _display_containers(self, containers: list) -> None:
+        """Display the list of available containers."""
+        if containers:
+            log_with_color(f"\nAvailable containers ({len(containers)}):", "bold cyan")
+            for i, container in enumerate(containers, 1):
+                log_info(f"  {i}. {container}")
+        else:
+            log_warning("No containers found in the database.")
+
+    def test_connection(self, connection_config: ConnectionConfig) -> None:
+        """Main method to test CosmosDB connection and list containers."""
+        # Test database access
+        log_step(2, "Testing database access...")
+        containers = self._test_database_access(connection_config)
+
+        # Display containers
+        log_step(3, "Listing containers...")
+        self._display_containers(containers)

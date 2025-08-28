@@ -54,25 +54,22 @@ where = ["."]
 include = ["cosmos_isolation_utils*"]
 
 [project.scripts]
-cosmos-isolation-utils = "cosmos_isolation_utils.cli:main"
+cosmos-isolation-utils = "cosmos_isolation_utils:main"
 
 [project.entry-points."console_scripts"]
-cosmos-isolation-utils = "cosmos_isolation_utils.cli:main"
+cosmos-isolation-utils = "cosmos_isolation_utils:main"
 
 
 
 [tool.pylint.messages_control]
 disable = [
-    "C0114",  # missing-module-docstring
-    "C0115",  # missing-class-docstring
-    "C0116",  # missing-function-docstring
-    "R0903",  # too-few-public-methods
-    "R0913",  # too-many-arguments
-    "C0103",  # invalid-name
+    "W0718",  # broad-exception-caught
+    "W0719",  # broad-exception-raised
+    "R0801",  # duplicate-code
 ]
 
 [tool.pylint.format]
-max-line-length = 88
+max-line-length = 120
 
 [tool.pylint.basic]
 good-names = ["i", "j", "k", "ex", "Run", "_"]

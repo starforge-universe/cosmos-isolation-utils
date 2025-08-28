@@ -2,150 +2,222 @@
 Core container status functionality for CosmosDB.
 """
 
-import sys
-from rich.console import Console
-from rich.panel import Panel
+from typing import List, Dict, Any
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from .cosmos_client import CosmosDBClient
+from .config import DatabaseConfig, StatusConfig
+from .logging_utils import (
+    log_error, log_info, log_warning, log_panel, console, log_with_color
+)
+from .base_executor import BaseSubcommandExecutor
 
-console = Console()
 
+class ContainerStatusAnalyzer(BaseSubcommandExecutor):  # pylint: disable=too-few-public-methods
+    """Analyzer class for container status and statistics."""
 
-def get_container_status(endpoint: str, key: str, database: str, allow_insecure: bool, detailed: bool):
-    """Show the status and statistics of all containers in a CosmosDB database."""
+    def __init__(self, db_config: DatabaseConfig):
+        """Initialize the analyzer with database configuration."""
+        super().__init__(db_config)
+        self.container_stats = []
 
-    try:
-        # Initialize CosmosDB client
-        client = CosmosDBClient(endpoint, key, database, allow_insecure)
-
-        console.print(Panel(f"[bold blue]Database: {database}[/bold blue]"))
-
-        # Get container statistics
+    def _gather_container_statistics(self) -> None:
+        """Gather container statistics with progress tracking."""
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console
         ) as progress:
             task = progress.add_task("Gathering container statistics...", total=None)
-            container_stats = client.get_all_containers_stats()
-            progress.update(task, completed=True)
 
-        if not container_stats:
-            console.print("[yellow]No containers found in the database.[/yellow]")
-            return
+            try:
+                containers = self.list_containers()
+                stats = []
 
-        # Display summary
-        total_items = sum(
-            stat['item_count'] for stat in container_stats
+                for container_name in containers:
+                    try:
+                        container_stats = self.get_container_properties(container_name)
+                        stats.append(container_stats)
+                    except Exception as e:
+                        log_warning(f"Warning: Could not get stats for container '{container_name}': {e}")
+                        # Add basic info even if stats fail
+                        stats.append({
+                            "name": container_name,
+                            "item_count": "Unknown",
+                            "partition_key": "Unknown",
+                            "last_modified": "Unknown",
+                            "etag": "Unknown"
+                        })
+
+                self.container_stats = stats
+                progress.update(task, completed=True)
+
+            except Exception as e:
+                log_error(f"Error getting container statistics: {e}")
+                raise
+
+    def _display_database_header(self) -> None:
+        """Display the database header panel."""
+        log_panel(f"Database: {self.db_config.database}", style="bold blue")
+
+    def _check_empty_database(self) -> bool:
+        """Check if the database has no containers."""
+        if not self.container_stats:
+            log_warning("No containers found in the database.")
+            return True
+        return False
+
+    def _calculate_total_items(self) -> int:
+        """Calculate total items across all containers."""
+        return sum(
+            stat['item_count'] for stat in self.container_stats
             if isinstance(stat['item_count'], int)
         )
-        console.print(
-            f"[cyan]Found {len(container_stats)} containers with {total_items} total items[/cyan]"
-        )
 
-        # Create main table
+    def _display_summary(self, total_items: int) -> None:
+        """Display the summary information."""
+        log_info(f"Found {len(self.container_stats)} containers with {total_items} total items")
+
+    def _format_item_count(self, item_count: Any) -> str:
+        """Format item count for display."""
+        if isinstance(item_count, int):
+            return f"{item_count:,}"
+        return str(item_count)
+
+    def _format_partition_key(self, partition_key: Any) -> str:
+        """Format partition key for display."""
+        if partition_key and 'paths' in partition_key:
+            return str(partition_key['paths'])
+        return "N/A"
+
+    def _format_last_modified(self, last_modified: Any) -> str:
+        """Format last modified date for display."""
+        if last_modified:
+            return str(last_modified)
+        return "N/A"
+
+    def _create_status_table(self) -> Table:
+        """Create and populate the container status table."""
         table = Table(title="Container Status")
         table.add_column("Container Name", style="cyan")
         table.add_column("Items", style="green")
         table.add_column("Partition Key", style="yellow")
         table.add_column("Last Modified", style="blue")
 
-        for stat in container_stats:
-            item_count = stat['item_count']
-            if isinstance(item_count, int):
-                item_count_str = f"{item_count:,}"
-            else:
-                item_count_str = str(item_count)
-
-            partition_key = stat['partition_key']
-            if partition_key and 'paths' in partition_key:
-                partition_key_str = str(partition_key['paths'])
-            else:
-                partition_key_str = "N/A"
-
-            last_modified = stat['last_modified']
-            if last_modified:
-                last_modified_str = str(last_modified)
-            else:
-                last_modified_str = "N/A"
-
+        for stat in self.container_stats:
             table.add_row(
                 stat['name'],
-                item_count_str,
-                partition_key_str,
-                last_modified_str
+                self._format_item_count(stat['item_count']),
+                self._format_partition_key(stat['partition_key']),
+                self._format_last_modified(stat['last_modified'])
             )
 
-        console.print(table)
+        return table
 
-        # Show detailed information if requested
-        if detailed:
-            console.print("\n" + "="*80)
-            console.print("[bold]Detailed Container Information[/bold]")
+    def _display_detailed_information(self, status_config: StatusConfig) -> None:
+        """Display detailed container information if requested."""
+        if not status_config.detailed:
+            return
 
-            for stat in container_stats:
-                console.print(Panel(f"[bold blue]{stat['name']}[/bold blue]"))
-                console.print(f"  Items: {stat['item_count']}")
-                console.print(f"  Partition Key: {stat['partition_key']}")
-                console.print(f"  Last Modified: {stat['last_modified']}")
-                console.print(f"  ETag: {stat['etag']}")
-                console.print()
+        log_info("\n" + "="*80)
+        log_with_color("Detailed Container Information", "bold cyan")
 
-        # Show recommendations
-        console.print("\n" + "="*80)
-        console.print("[bold]Recommendations[/bold]")
+        for stat in self.container_stats:
+            log_panel(f"{stat['name']}", style="bold blue")
+            log_info(f"  Items: {stat['item_count']}")
+            log_info(f"  Partition Key: {stat['partition_key']}")
+            log_info(f"  Last Modified: {stat['last_modified']}")
+            log_info(f"  ETag: {stat['etag']}")
+            log_info("")
 
-        # Check for containers with no items
-        empty_containers = [
-            stat for stat in container_stats if stat['item_count'] == 0
+    def _find_empty_containers(self) -> List[Dict[str, Any]]:
+        """Find containers with no items."""
+        return [
+            stat for stat in self.container_stats if stat['item_count'] == 0
         ]
+
+    def _find_containers_without_partition_keys(self) -> List[Dict[str, Any]]:
+        """Find containers without partition keys."""
+        return [
+            stat for stat in self.container_stats if not stat['partition_key']
+        ]
+
+    def _display_recommendations(self) -> None:
+        """Display recommendations based on container analysis."""
+        log_info("\n" + "="*80)
+        log_with_color("Recommendations", "bold cyan")
+
+        # Check for empty containers
+        empty_containers = self._find_empty_containers()
         if empty_containers:
             empty_names = ', '.join(stat['name'] for stat in empty_containers)
-            console.print(
-                f"[yellow]• {len(empty_containers)} containers are empty: {empty_names}[/yellow]"
+            log_warning(
+                f"• {len(empty_containers)} containers are empty: "
+                f"{empty_names}"
             )
 
         # Check for containers without partition keys
-        no_partition_key = [
-            stat for stat in container_stats if not stat['partition_key']
-        ]
+        no_partition_key = self._find_containers_without_partition_keys()
         if no_partition_key:
             no_pk_names = ', '.join(stat['name'] for stat in no_partition_key)
-            console.print(
-                f"[yellow]• {len(no_partition_key)} containers have no partition key: {no_pk_names}[/yellow]"
+            log_warning(
+                f"• {len(no_partition_key)} containers have no partition key: "
+                f"{no_pk_names}"
             )
 
-        # Show dump commands
-        console.print("\n[bold]Dump Commands:[/bold]")
-        dump_all_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
-            f"dump -c all -o all_containers.json"
+    def _build_command_string(self, command: str) -> str:
+        """Build a command string with the current database configuration."""
+        base_cmd = (
+            f"cosmos-isolation-utils -e {self.db_config.endpoint} "
+            f"-k {self.db_config.key} -d {self.db_config.database}"
         )
-        console.print(f"[cyan]• Dump all containers:[/cyan] {dump_all_cmd}")
+        return f"{base_cmd} {command}"
 
-        dump_specific_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
-            f"dump -c 'container1,container2' -o selected_containers.json"
+    def _display_dump_commands(self) -> None:
+        """Display dump command examples."""
+        log_with_color("Dump Commands:", "bold cyan")
+
+        dump_all_cmd = self._build_command_string("dump -c all -o all_containers.json")
+        log_with_color(f"• Dump all containers: {dump_all_cmd}", "cyan")
+
+        dump_specific_cmd = self._build_command_string(
+            "dump -c 'container1,container2' -o selected_containers.json"
         )
-        console.print(f"[cyan]• Dump specific containers:[/cyan] {dump_specific_cmd}")
+        log_with_color(f"• Dump specific containers: {dump_specific_cmd}", "cyan")
 
-        # Show upload commands
-        console.print("\n[bold]Upload Commands:[/bold]")
-        upload_all_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
-            f"upload -i all_containers.json --create-containers"
+    def _display_upload_commands(self) -> None:
+        """Display upload command examples."""
+        log_with_color("Upload Commands:", "bold cyan")
+
+        upload_all_cmd = self._build_command_string("upload -i all_containers.json --create-containers")
+        log_with_color(f"• Upload all containers: {upload_all_cmd}", "cyan")
+
+        upload_specific_cmd = self._build_command_string(
+            "upload -i all_containers.json -c 'container1,container2' --create-containers"
         )
-        console.print(f"[cyan]• Upload all containers:[/cyan] {upload_all_cmd}")
+        log_with_color(f"• Upload specific containers: {upload_specific_cmd}", "cyan")
 
-        upload_specific_cmd = (
-            f"cosmos-isolation-utils -e {endpoint} -k {key} -d {database} "
-            f"upload -i all_containers.json -c 'container1,container2' --create-containers"
-        )
-        console.print(f"[cyan]• Upload specific containers:[/cyan] {upload_specific_cmd}")
+    def analyze(self, status_config: StatusConfig) -> None:
+        """Main method to analyze and display container status."""
+        # Display database header and gather data
+        self._display_database_header()
+        self._gather_container_statistics()
 
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        console.print("Please check your CosmosDB connection parameters.")
-        raise
+        # Check for empty database
+        if self._check_empty_database():
+            return
+
+        # Display summary and table
+        total_items = self._calculate_total_items()
+        self._display_summary(total_items)
+
+        status_table = self._create_status_table()
+        console.print(status_table)
+
+        # Display detailed information if requested
+        self._display_detailed_information(status_config)
+
+        # Display recommendations and commands
+        self._display_recommendations()
+        self._display_dump_commands()
+        self._display_upload_commands()

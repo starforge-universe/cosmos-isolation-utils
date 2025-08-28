@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov lint clean build install-cli
+.PHONY: help install install-dev test test-cov lint clean build check-dist upload-pypi install-cli
 
 help:  ## Show this help message
 	@echo "CosmosDB Isolation Utilities - Available commands:"
@@ -15,13 +15,15 @@ install-cli: install  ## Install the CLI tool
 	@echo "Usage: cosmos-isolation-utils --help"
 
 test:  ## Run the test suite
-	python -m pytest tests/ -v
+	python -m unittest discover tests/ -v
 
 test-cov:  ## Run tests with coverage
-	python -m pytest tests/ --cov=cosmos_isolation_utils --cov-report=html --cov-report=term
+	python -m coverage run -m unittest discover tests/ -v
+	python -m coverage report --include="cosmos_isolation_utils/*"
+	python -m coverage html --include="cosmos_isolation_utils/*"
 
 lint:  ## Run linting checks
-	pylint cosmos_isolation_utils/
+	pylint cosmos_isolation_utils/ --rcfile=pyproject.toml
 
 clean:  ## Clean up build artifacts
 	rm -rf build/
@@ -34,6 +36,12 @@ clean:  ## Clean up build artifacts
 
 build:  ## Build the package
 	python -m build
+
+check-dist:  ## Check distribution files
+	twine check dist/*
+
+upload-pypi:  ## Upload package to PyPI (requires PYPI_USERNAME and PYPI_PASSWORD env vars)
+	twine upload --repository-url $(PYPI_REPOSITORY) -u $(PYPI_USERNAME) -p $(PYPI_PASSWORD) dist/*
 
 demo:  ## Run a demo of the CLI tool
 	@echo "=== CosmosDB Isolation Utilities CLI Demo ==="
