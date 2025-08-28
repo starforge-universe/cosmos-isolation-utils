@@ -25,7 +25,7 @@ class DatabaseDeleter(BaseSubcommandExecutor):  # pylint: disable=too-few-public
     def _list_databases(self) -> list:
         """List all databases in the CosmosDB account."""
         try:
-            databases = self.client.list_databases()
+            databases = self.list_databases()
             return databases
         except Exception as e:
             log_error(f"Error listing databases: {e}")
@@ -34,7 +34,7 @@ class DatabaseDeleter(BaseSubcommandExecutor):  # pylint: disable=too-few-public
     def _get_database_info(self, database_name: str) -> dict:
         """Get information about a specific database."""
         try:
-            db_info = self.client.get_database_info(database_name)
+            db_info = self.get_database_info(database_name)
             properties = db_info["properties"]
             containers = db_info["containers"]
 
@@ -93,7 +93,7 @@ class DatabaseDeleter(BaseSubcommandExecutor):  # pylint: disable=too-few-public
 
             # Proceed with deletion
             log_info(f"Deleting database '{database_name}'...")
-            self.client.delete_database(database_name)
+            self.delete_database(database_name)
 
             log_success(f"✓ Database '{database_name}' deleted successfully")
             return True

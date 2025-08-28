@@ -4,7 +4,6 @@ Core container upload functionality for CosmosDB.
 
 import json
 from pathlib import Path
-from azure.cosmos import PartitionKey
 from azure.cosmos.exceptions import CosmosHttpResponseError
 from rich.table import Table
 from rich.prompt import Confirm
@@ -34,17 +33,6 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
     def _format_container_list(self, containers):
         """Format a list of container names for display."""
         return ', '.join(containers)
-
-    def _create_partition_key(self, paths):
-        """Create a PartitionKey object from paths."""
-        if isinstance(paths, str):
-            paths = [paths]
-        elif not isinstance(paths, list):
-            raise ValueError(f"Invalid partition key paths format: {paths}")
-
-        if len(paths) == 1:
-            return PartitionKey(path=paths[0])
-        return PartitionKey(paths=paths)
 
     def _validate_input_file(self, upload_config: UploadConfig) -> None:
         """Validate that the input file exists and is readable."""
@@ -105,7 +93,7 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
     def _check_database_existence(self, upload_config: UploadConfig) -> None:
         """Check if database exists and create if needed."""
         try:
-            self.available_containers = self.client.list_containers()
+            self.available_containers = self.list_containers()
         except CosmosHttpResponseError as e:
             if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
                 self._handle_database_not_found(upload_config)
@@ -129,7 +117,7 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
     def _create_database(self) -> None:
         """Create the database."""
         try:
-            self.client.create_database_if_not_exists(self.db_config.database)
+            self.create_database_if_not_exists(self.db_config.database)
             log_checkmark(f"Database '{self.db_config.database}' created successfully")
             self.available_containers = []
         except Exception as e:
@@ -201,8 +189,7 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
             if partition_key and 'paths' in partition_key:
                 log_info(f"Creating container with partition key: {partition_key['paths']}")
                 try:
-                    pk = self._create_partition_key(partition_key['paths'])
-                    self.client.create_container(container_name, pk)
+                    self.create_container(container_name, partition_key['paths'])
                     log_checkmark(f"Successfully created container '{container_name}' with partition key")
                     return True
                 except Exception as pk_error:
@@ -210,8 +197,7 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
                     log_warning("Attempting to create container with simple partition key...")
 
                     try:
-                        simple_pk = PartitionKey(path="pk")
-                        self.client.create_container(container_name, simple_pk)
+                        self.create_container(container_name, ["pk"])
                         log_checkmark(
                             f"Successfully created container '{container_name}' with simple partition key 'pk'"
                         )
@@ -226,7 +212,7 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
             else:
                 log_info("Creating container with default partition key")
                 try:
-                    self.client.create_container(container_name, PartitionKey(path="/id"))
+                    self.create_container(container_name, ["/id"])
                     log_checkmark(f"Successfully created container '{container_name}'")
                     return True
                 except Exception as e:
@@ -253,10 +239,7 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
             log_info(f"Uploading {len(items)} items to container '{container_name}'...")
 
             try:
-                if upload_config.upsert:
-                    uploaded_items = self.client.upsert_items_batch(container_name, items, upload_config.batch_size)
-                else:
-                    uploaded_items = self.client.create_items_batch(container_name, items, upload_config.batch_size)
+                uploaded_items = self.process_items_batch(container_name, items, upload_config.batch_size, upload_config.upsert)
 
                 log_checkmark(f"Successfully uploaded {len(uploaded_items)} items to container '{container_name}'")
                 return True, len(uploaded_items)

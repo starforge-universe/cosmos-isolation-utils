@@ -32,7 +32,7 @@ class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public
             )
             raise Exception("No containers specified")
 
-        available_containers = self.client.list_containers()
+        available_containers = self.list_containers()
 
         if dump_config.containers.lower() == 'all':
             containers_to_dump = available_containers
@@ -71,7 +71,7 @@ class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public
         try:
             # Get container properties to extract partition key
             log_info(f"Extracting partition key information for {container_name}...")
-            container_properties = self.client.get_container_properties(container_name)
+            container_properties = self.get_container_properties(container_name)
 
             # Extract only partition key information
             partition_key = None
@@ -82,7 +82,7 @@ class ContainerDumper(BaseSubcommandExecutor):  # pylint: disable=too-few-public
                 log_warning(f"No partition key found for container '{container_name}'")
 
             # Get all items from the container
-            items = self.client.get_all_items(container_name)
+            items = self.get_all_items(container_name)
 
             if not items:
                 log_warning(f"No items found in container '{container_name}'")

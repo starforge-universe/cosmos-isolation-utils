@@ -25,7 +25,7 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
         log_info("  Attempting to list containers...")
 
         try:
-            containers = self.client.list_containers()
+            containers = self.list_containers()
             log_success(f"✓ Successfully connected to database: {self.db_config.database}")
             return containers
         except CosmosHttpResponseError as e:
@@ -55,7 +55,7 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
 
         try:
             log_info(f"Creating database '{self.db_config.database}'...")
-            self.client.create_database_if_not_exists(self.db_config.database)
+            self.create_database_if_not_exists(self.db_config.database)
             log_checkmark(f"Database '{self.db_config.database}' created successfully")
         except Exception as e:
             log_error(f"Error creating database '{self.db_config.database}': {e}")
@@ -65,7 +65,7 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
         """Test access to the newly created database."""
         try:
             log_info("Testing database access after creation...")
-            containers = self.client.list_containers()
+            containers = self.list_containers()
             log_success(f"✓ Successfully connected to newly created database: {self.db_config.database}")
             return containers
         except Exception as e:

@@ -31,12 +31,12 @@ class ContainerStatusAnalyzer(BaseSubcommandExecutor):  # pylint: disable=too-fe
             task = progress.add_task("Gathering container statistics...", total=None)
 
             try:
-                containers = self.client.list_containers()
+                containers = self.list_containers()
                 stats = []
 
                 for container_name in containers:
                     try:
-                        container_stats = self.client.get_container_properties(container_name)
+                        container_stats = self.get_container_properties(container_name)
                         stats.append(container_stats)
                     except Exception as e:
                         log_warning(f"Warning: Could not get stats for container '{container_name}': {e}")
