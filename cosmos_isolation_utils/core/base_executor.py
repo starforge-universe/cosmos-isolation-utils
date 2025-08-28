@@ -6,11 +6,13 @@ ensuring consistent initialization patterns and client management.
 """
 
 from typing import Dict, List, Any, Optional
-from azure.cosmos.database import DatabaseProxy
-from rich.prompt import Confirm
 import urllib3
+
 from azure.cosmos import PartitionKey, CosmosClient
+from azure.cosmos.database import DatabaseProxy
 from azure.cosmos.exceptions import CosmosHttpResponseError
+
+from rich.prompt import Confirm
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .config import DatabaseConfig
@@ -39,7 +41,7 @@ class BaseSubcommandExecutor:
         self._db_config = db_config
         self._client: Optional[CosmosClient] = None
         self._database: Optional[DatabaseProxy] = None
-        
+
         # Automatically display connection info and initialize client
         self._display_connection_info()
         log_step(1, "Initializing client...")
@@ -105,7 +107,7 @@ class BaseSubcommandExecutor:
             partition_key_paths = [partition_key_paths]
         elif not isinstance(partition_key_paths, list):
             raise ValueError(f"Invalid partition key paths format: {partition_key_paths}")
-        
+
         pk = self._create_partition_key(partition_key_paths)
         self._database.create_container(id=container_name, partition_key=pk)
 
@@ -118,7 +120,7 @@ class BaseSubcommandExecutor:
         
         Returns:
             List of container names as strings
-            
+
         Raises:
             RuntimeError: If client is not initialized
         """
@@ -137,7 +139,7 @@ class BaseSubcommandExecutor:
             
         Returns:
             Dictionary containing container properties
-            
+
         """
         container = self.get_container_client(container_name)
         return container.read()
@@ -166,14 +168,14 @@ class BaseSubcommandExecutor:
         
         Args:
             database_name: Name of the database to create
-            
+
         Returns:
             Database object from the Azure SDK
-            
+
         """
         return self._client.create_database_if_not_exists(database_name)
 
-    def process_items_batch(self, container_name: str, items: list[dict[str, any]], 
+    def process_items_batch(self, container_name: str, items: list[dict[str, any]],
                            batch_size: int = 100, upsert: bool = False) -> list[dict[str, any]]:
         """
         Process multiple items in batches with create or upsert operation.
@@ -186,10 +188,10 @@ class BaseSubcommandExecutor:
             items: List of items to process
             batch_size: Size of batches for processing (default: 100)
             upsert: If True, use upsert operation; if False, use create operation
-            
+
         Returns:
             List of processed items
-            
+
         """
         container = self.get_container_client(container_name)
         processed_items = []
@@ -304,7 +306,7 @@ class BaseSubcommandExecutor:
             "container_count": len(containers)
         }
 
-    def delete_database(self, database_name: str) -> None:
+    def _delete_database(self, database_name: str) -> None:
         """
         Delete a database.
         

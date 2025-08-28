@@ -3,11 +3,10 @@ Core connection testing functionality for CosmosDB.
 """
 
 from azure.cosmos.exceptions import CosmosHttpResponseError
-from rich.prompt import Confirm
 
 from .config import DatabaseConfig, ConnectionConfig
 from .logging_utils import (
-    log_info, log_success, log_error, log_warning, log_step, log_checkmark, log_with_color
+    log_info, log_success, log_error, log_warning, log_step, log_with_color
 )
 from .base_executor import BaseSubcommandExecutor
 
@@ -19,7 +18,7 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
         """Initialize the connection tester with database configuration."""
         super().__init__(db_config)
 
-    def _test_database_access(self, connection_config: ConnectionConfig, repeated: bool = False) -> list:
+    def _test_database_access(self, connection_config: ConnectionConfig) -> list:
         """Test database access and return list of containers."""
         log_info("  Attempting to list containers...")
 
@@ -40,7 +39,7 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
 
         if connection_config.create_database:
             self.create_database(connection_config.force)
-            return self._test_database_access(connection_config, repeated=True)
+            return self._test_database_access(connection_config)
 
         log_error(f"Database '{self.db_config.database}' does not exist. Use --create-database flag to create it.")
         raise Exception(f"Database '{self.db_config.database}' does not exist") from error

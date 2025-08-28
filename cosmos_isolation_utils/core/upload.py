@@ -218,7 +218,9 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
             log_info(f"Uploading {len(items)} items to container '{container_name}'...")
 
             try:
-                uploaded_items = self.process_items_batch(container_name, items, upload_config.batch_size, upload_config.upsert)
+                uploaded_items = self.process_items_batch(
+                    container_name, items, upload_config.batch_size, upload_config.upsert
+                )
 
                 log_checkmark(f"Successfully uploaded {len(uploaded_items)} items to container '{container_name}'")
                 return True, len(uploaded_items)
