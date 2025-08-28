@@ -96,33 +96,12 @@ class ContainerUploader(BaseSubcommandExecutor):  # pylint: disable=too-few-publ
             self.available_containers = self.list_containers()
         except CosmosHttpResponseError as e:
             if "Owner resource does not exist" in str(e) or "NotFound" in str(e):
-                self._handle_database_not_found(upload_config)
+                log_warning(f"Database '{self.db_config.database}' does not exist or is not accessible.")
+                self.create_database(upload_config.force)
+                self.available_containers = []
             else:
                 log_error(f"Error listing containers: {e}")
                 raise
-
-    def _handle_database_not_found(self, upload_config: UploadConfig) -> None:
-        """Handle the case when the database doesn't exist."""
-        log_warning(f"Database '{self.db_config.database}' does not exist or is not accessible.")
-        if not upload_config.force and not upload_config.dry_run:
-            if Confirm.ask(f"Do you want to create database '{self.db_config.database}' first?"):
-                self._create_database()
-            else:
-                log_warning("Database creation cancelled. Cannot proceed without database.")
-                raise Exception("Database creation cancelled")
-        else:
-            # Force mode - try to create database
-            self._create_database()
-
-    def _create_database(self) -> None:
-        """Create the database."""
-        try:
-            self.create_database_if_not_exists(self.db_config.database)
-            log_checkmark(f"Database '{self.db_config.database}' created successfully")
-            self.available_containers = []
-        except Exception as e:
-            log_error(f"Error creating database '{self.db_config.database}': {e}")
-            raise
 
     def _display_upload_summary(self, upload_config: UploadConfig) -> None:
         """Display the upload summary and container details."""

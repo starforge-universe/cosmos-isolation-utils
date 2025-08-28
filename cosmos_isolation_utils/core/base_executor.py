@@ -5,8 +5,9 @@ This module provides a common superclass for all subcommand implementations,
 ensuring consistent initialization patterns and client management.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from azure.cosmos.database import DatabaseProxy
+from rich.prompt import Confirm
 import urllib3
 from azure.cosmos import PartitionKey, CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError
@@ -14,7 +15,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .config import DatabaseConfig
 from .logging_utils import (
-    log_info, log_error, log_warning, log_success, console
+    log_checkmark, log_info, log_error, log_step, log_warning, log_success, console
 )
 
 
@@ -36,11 +37,12 @@ class BaseSubcommandExecutor:
             db_config: Database connection configuration
         """
         self._db_config = db_config
-        self._client: CosmosClient = None
-        self._database: DatabaseProxy = None
+        self._client: Optional[CosmosClient] = None
+        self._database: Optional[DatabaseProxy] = None
         
         # Automatically display connection info and initialize client
         self._display_connection_info()
+        log_step(1, "Initializing client...")
         self._initialize_client()
 
     @property
@@ -139,6 +141,21 @@ class BaseSubcommandExecutor:
         """
         container = self.get_container_client(container_name)
         return container.read()
+
+    def create_database(self, force: bool = False) -> None:
+        """Create the database if it doesn't exist."""
+        if not force:
+            if not Confirm.ask(f"Do you want to create database '{self.db_config.database}'?"):
+                log_warning("Database creation cancelled.")
+                raise Exception("Database creation cancelled by user")
+
+        try:
+            log_info(f"Creating database '{self.db_config.database}'...")
+            self._client.create_database_if_not_exists(self.db_config.database)
+            log_checkmark(f"Database '{self.db_config.database}' created successfully")
+        except Exception as e:
+            log_error(f"Error creating database '{self.db_config.database}': {e}")
+            raise
 
     def create_database_if_not_exists(self, database_name: str):
         """

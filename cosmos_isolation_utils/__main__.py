@@ -9,7 +9,7 @@ import os
 import sys
 import click
 
-from .core import (
+from cosmos_isolation_utils.core import (
     ConnectionTester,
     ContainerDumper,
     ContainerUploader,
@@ -21,8 +21,8 @@ from .core import (
     StatusConfig,
     ConnectionConfig
 )
-from .core.status import ContainerStatusAnalyzer
-from .core.logging_utils import log_bold, log_error
+from cosmos_isolation_utils.core.status import ContainerStatusAnalyzer
+from cosmos_isolation_utils.core.logging_utils import log_bold, log_error
 
 
 @click.group()

@@ -19,9 +19,8 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
         """Initialize the connection tester with database configuration."""
         super().__init__(db_config)
 
-    def _test_database_access(self, connection_config: ConnectionConfig) -> list:
+    def _test_database_access(self, connection_config: ConnectionConfig, repeated: bool = False) -> list:
         """Test database access and return list of containers."""
-        log_step(2, "Testing database access...")
         log_info("  Attempting to list containers...")
 
         try:
@@ -40,41 +39,14 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
         log_warning(f"Database '{self.db_config.database}' does not exist or is not accessible.")
 
         if connection_config.create_database:
-            self._create_database(connection_config)
-            return self._test_database_access_after_creation()
+            self.create_database(connection_config.force)
+            return self._test_database_access(connection_config, repeated=True)
 
         log_error(f"Database '{self.db_config.database}' does not exist. Use --create-database flag to create it.")
         raise Exception(f"Database '{self.db_config.database}' does not exist") from error
 
-    def _create_database(self, connection_config: ConnectionConfig) -> None:
-        """Create the database if it doesn't exist."""
-        if not connection_config.force:
-            if not Confirm.ask(f"Do you want to create database '{self.db_config.database}'?"):
-                log_warning("Database creation cancelled.")
-                raise Exception("Database creation cancelled by user")
-
-        try:
-            log_info(f"Creating database '{self.db_config.database}'...")
-            self.create_database_if_not_exists(self.db_config.database)
-            log_checkmark(f"Database '{self.db_config.database}' created successfully")
-        except Exception as e:
-            log_error(f"Error creating database '{self.db_config.database}': {e}")
-            raise
-
-    def _test_database_access_after_creation(self) -> list:
-        """Test access to the newly created database."""
-        try:
-            log_info("Testing database access after creation...")
-            containers = self.list_containers()
-            log_success(f"✓ Successfully connected to newly created database: {self.db_config.database}")
-            return containers
-        except Exception as e:
-            log_error(f"Error testing database access after creation: {e}")
-            raise
-
     def _display_containers(self, containers: list) -> None:
         """Display the list of available containers."""
-        log_step(3, "Listing containers...")
         if containers:
             log_with_color(f"\nAvailable containers ({len(containers)}):", "bold cyan")
             for i, container in enumerate(containers, 1):
@@ -85,7 +57,9 @@ class ConnectionTester(BaseSubcommandExecutor):  # pylint: disable=too-few-publi
     def test_connection(self, connection_config: ConnectionConfig) -> None:
         """Main method to test CosmosDB connection and list containers."""
         # Test database access
+        log_step(2, "Testing database access...")
         containers = self._test_database_access(connection_config)
 
         # Display containers
+        log_step(3, "Listing containers...")
         self._display_containers(containers)
