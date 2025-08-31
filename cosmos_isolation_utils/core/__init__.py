@@ -1,20 +1,31 @@
 """
-Core implementation module for CosmosDB isolation utilities.
+Core module for CosmosDB isolation utilities.
 
-This module contains the actual business logic for all the utilities,
-separated from the CLI interface.
+This module provides the main functionality for database operations,
+including upload, download, deletion, and status checking.
 """
 
-from .connection import test_connection
-from .status import get_container_status
-from .dump import dump_containers
-from .upload import upload_entries
-from .delete import delete_database
+from .config import (
+    DatabaseConfig, UploadConfig, DumpConfig, DeleteConfig, StatusConfig, ConnectionConfig
+)
+from .base_executor import BaseSubcommandExecutor
+from .delete import DatabaseDeleter
+from .dump import ContainerDumper
+from .upload import ContainerUploader
+from .status import ContainerStatusAnalyzer
+from .connection import ConnectionTester
 
 __all__ = [
-    'test_connection',
-    'get_container_status',
-    'dump_containers',
-    'upload_entries',
-    'delete_database'
+    'DatabaseConfig',
+    'UploadConfig', 
+    'DumpConfig',
+    'DeleteConfig',
+    'StatusConfig',
+    'ConnectionConfig',
+    'BaseSubcommandExecutor',
+    'DatabaseDeleter',
+    'ContainerDumper',
+    'ContainerUploader',
+    'ContainerStatusAnalyzer',
+    'ConnectionTester',
 ]
