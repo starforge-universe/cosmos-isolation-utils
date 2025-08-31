@@ -259,4 +259,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For issues and questions, please use the GitHub issue tracker or contact the maintainers.
+For issues and questions, please use the GitHub issue tracker or contact the maintainers. 
