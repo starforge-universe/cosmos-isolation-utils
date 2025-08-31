@@ -37,27 +37,81 @@ jobs:
   # Build package
   build:
     name: 'Build Package'
-    needs: [extract-version, checks]
+    needs: [checks]
     uses: ./.github/workflows/__call__build.yaml
     with:
       version: ${{ needs.extract-version.outputs.version }}
 
-  # Publish to PyPI
-  publish:
-    name: 'Publish to PyPI'
-    needs: [extract-version, build]
+  # Publish to Test PyPI
+  publish-test:
+    name: 'Publish to Test PyPI'
+    needs: [build]
     if: github.ref_type == 'branch' && startsWith(github.ref_name, 'release/')
-    uses: ./.github/workflows/__call__publish.yaml
-    with:
-      pypi-repository: ${{ vars.PYPI_REPOSITORY || 'https://pypi.org/simple/' }}
-    secrets:
-      pypi-username: ${{ secrets.PYPI_USERNAME }}
-      pypi-password: ${{ secrets.PYPI_PASSWORD }}
+    environment: 'test'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout project sources'
+        uses: actions/checkout@v5
+
+      - name: 'Download build artifacts'
+        uses: actions/download-artifact@v5
+        with:
+          name: python-package
+          path: dist/
+
+      - name: 'Setup Python 3.10'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 'Install twine'
+        run: pip install twine
+
+      - name: 'Publish to Test PyPI'
+        run: |
+          PYPI_REPOSITORY=${{ vars.PYPI_REPOSITORY || 'https://test.pypi.org/legacy/' }} \
+          PYPI_USERNAME=${{ secrets.PYPI_USERNAME }} \
+          PYPI_PASSWORD=${{ secrets.PYPI_PASSWORD }} \
+          make upload-pypi
+
+  # Publish to Production PyPI
+  publish-production:
+    name: 'Publish to Production PyPI'
+    needs: [publish-test]
+    if: github.ref_type == 'branch' && startsWith(github.ref_name, 'release/')
+    environment: 'production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout project sources'
+        uses: actions/checkout@v5
+
+      - name: 'Download build artifacts'
+        uses: actions/download-artifact@v5
+        with:
+          name: python-package
+          path: dist/
+
+      - name: 'Setup Python 3.10'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 'Install twine'
+        run: pip install twine
+
+      - name: 'Publish to Production PyPI'
+        run: |
+          PYPI_REPOSITORY=${{ vars.PYPI_REPOSITORY || 'https://pypi.org/simple/' }} \
+          PYPI_USERNAME=${{ secrets.PYPI_USERNAME }} \
+          PYPI_PASSWORD=${{ secrets.PYPI_PASSWORD }} \
+          make upload-pypi
 
   # Create release tag
   tag-release:
     name: 'Tag Release'
-    needs: [extract-version, publish]
+    needs: [publish-production]
     runs-on: ubuntu-latest
     if: github.ref_type == 'branch' && startsWith(github.ref_name, 'release/')
     permissions:

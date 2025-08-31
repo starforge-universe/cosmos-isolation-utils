@@ -244,6 +244,34 @@ The project uses:
 - `coverage` for test coverage
 - `black` for code formatting
 
+## Release Workflow
+
+This project uses GitHub Actions with environment protection for secure package publishing to PyPI.
+
+### Release Process
+
+1. **Create Release Branch**: Push to a branch named `release/X.Y.Z` (e.g., `release/1.2.3`)
+2. **Automated Checks**: The workflow runs tests, builds the package, and publishes to Test PyPI
+3. **Test Publication**: Package is published to Test PyPI for validation
+4. **Production Publication**: After successful test publication, package is published to Production PyPI
+5. **Release Tag**: A Git tag is created for the release
+
+### Environment Setup
+
+The workflow requires two GitHub environments to be configured:
+
+- **`test-pypi`**: For publishing to Test PyPI
+- **`production-pypi`**: For publishing to Production PyPI
+
+See [Environment Setup Guide](docs/environment-setup.md) for detailed configuration instructions.
+
+### Security Features
+
+- **Environment Protection**: Each environment requires approval from designated reviewers
+- **Sequential Publishing**: Test publication must succeed before production publication
+- **Secret Isolation**: PyPI credentials are scoped to specific environments
+- **Approval Process**: Production releases require explicit approval with optional wait timers
+
 ## Contributing
 
 1. Fork the repository
