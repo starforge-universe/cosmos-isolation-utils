@@ -34,7 +34,11 @@ jobs:
     needs: extract-version
     uses: ./.github/workflows/__call__checks.yaml
 
-  # Build package
+  # Build package with extracted version
+  # The build workflow will:
+  # 1. Update pyproject.toml with the extracted version
+  # 2. Build the package using the updated version
+  # 3. Verify the built package has the correct version
   build:
     name: 'Build Package'
     needs: [checks]
