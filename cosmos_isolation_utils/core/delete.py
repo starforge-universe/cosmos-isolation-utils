@@ -79,21 +79,19 @@ class DatabaseDeleter(BaseSubcommandExecutor):  # pylint: disable=too-few-public
             if not force:
                 log_warning_icon("WARNING: This action cannot be undone!")
                 log_error(f"All data in database '{database_name}' will be permanently deleted.")
+                
+                # Show container information if present
+                if db_info['container_count'] > 0:
+                    log_warning_icon(f"This database contains {db_info['container_count']} containers with data!")
+                    log_error(f"Container names: {', '.join(db_info['containers'])}")
 
-                if not Confirm.ask(f"Are you sure you want to delete database '{database_name}'?"):
+                if not Confirm.ask(f"Are you sure you want to delete database '{database_name}' and ALL its data permanently?"):
                     log_warning("Database deletion cancelled")
                     return False
 
-                # Double confirmation for databases with containers
-                if db_info['container_count'] > 0:
-                    log_warning_icon(f"This database contains {db_info['container_count']} containers with data!")
-                    if not Confirm.ask("Are you absolutely sure? This will delete ALL data permanently!"):
-                        log_warning("Database deletion cancelled")
-                        return False
-
             # Proceed with deletion
             log_info(f"Deleting database '{database_name}'...")
-            self.delete_database(database_name)
+            self._delete_database(database_name)
 
             log_success(f"✓ Database '{database_name}' deleted successfully")
             return True
