@@ -98,7 +98,7 @@ def _create_database_config(endpoint: str, key: str, database: str, allow_insecu
               help='CosmosDB database name (or set COSMOS_DATABASE env var)')
 @click.option('--allow-insecure', '-a', is_flag=True,
               help='Allow insecure HTTPS requests (suppress warnings)')
-@click.option('--create-database', is_flag=True,
+@click.option('--create-database', 'create_database', is_flag=True,
               help='Create database if it does not exist')
 @click.option('--force', '-f', is_flag=True,
               help='Skip confirmation prompts')
@@ -130,7 +130,7 @@ def test(endpoint: str, key: str, database: str, allow_insecure: bool, create_da
               help='CosmosDB database name (or set COSMOS_DATABASE env var)')
 @click.option('--allow-insecure', '-a', is_flag=True,
               help='Allow insecure HTTPS requests (suppress warnings)')
-@click.option('--detailed', is_flag=True,
+@click.option('--detailed', 'detailed', is_flag=True,
               help='Show detailed information for each container')
 def status(endpoint: str, key: str, database: str, allow_insecure: bool, detailed: bool):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Show the status and statistics of all containers in a CosmosDB database."""
@@ -160,7 +160,7 @@ def status(endpoint: str, key: str, database: str, allow_insecure: bool, detaile
               help='Allow insecure HTTPS requests (suppress warnings)')
 @click.option('--containers', '-c',
               help='Comma-separated list of container names to dump (or "all" for all containers)')
-@click.option('--output', '-o', required=True,
+@click.option('--output', '-o', 'output', required=True,
               help='Output JSON file path')
 @click.option('--batch-size', '-b', default=100,
               help='Batch size for processing (default: 100)')
@@ -196,7 +196,7 @@ def dump(endpoint: str, key: str, database: str, allow_insecure: bool,  # pylint
               help='CosmosDB database name (or set COSMOS_DATABASE env var)')
 @click.option('--allow-insecure', '-a', is_flag=True,
               help='Allow insecure HTTPS requests (suppress warnings)')
-@click.option('--input', '-i', required=True,
+@click.option('--input', '-i', 'input_file', required=True,
               help='Input JSON file path')
 @click.option('--batch-size', '-b', default=100,
               help='Batch size for processing (default: 100)')
@@ -244,7 +244,7 @@ def upload(endpoint: str, key: str, database: str, allow_insecure: bool,  # pyli
               help='CosmosDB database name (or set COSMOS_DATABASE env var)')
 @click.option('--allow-insecure', '-a', is_flag=True,
               help='Allow insecure HTTPS requests (suppress warnings)')
-@click.option('--list-databases', '-l', is_flag=True,
+@click.option('--list-databases', '-l', 'list_databases', is_flag=True,
               help='List all existing databases')
 @click.option('--force', '-f', is_flag=True,
               help='Skip confirmation prompts for deletion')
