@@ -40,10 +40,41 @@ cosmos-isolation-utils <subcommand> -e <endpoint> -k <key> -d <database> [option
 
 ### Common Parameters
 
-- `-e, --endpoint`: CosmosDB endpoint URL (required)
-- `-k, --key`: CosmosDB primary key (required)
-- `-d, --database`: CosmosDB database name (required)
+All commands require CosmosDB connection parameters, which can be specified in two ways:
+
+#### **Command Line Options:**
+- `-e, --endpoint`: CosmosDB endpoint URL
+- `-k, --key`: CosmosDB primary key  
+- `-d, --database`: CosmosDB database name
 - `-a, --allow-insecure`: Allow insecure HTTPS requests (suppress warnings)
+
+#### **Environment Variables:**
+- `COSMOS_ENDPOINT`: CosmosDB endpoint URL
+- `COSMOS_KEY`: CosmosDB primary key
+- `COSMOS_DATABASE`: CosmosDB database name
+
+#### **Parameter Priority:**
+Command line parameters **override** environment variables. If both are provided, the command line value takes precedence.
+
+#### **Usage Examples:**
+```bash
+# Using command line parameters only
+cosmos-isolation-utils test -e "https://your-cosmosdb.documents.azure.com:443/" \
+                      -k "your-primary-key" \
+                      -d "testdb"
+
+# Using environment variables only
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="testdb"
+cosmos-isolation-utils test
+
+# Mixed usage (command line overrides environment)
+export COSMOS_ENDPOINT="https://default-endpoint.documents.azure.com:443/"
+export COSMOS_KEY="default-key"
+export COSMOS_DATABASE="defaultdb"
+cosmos-isolation-utils test -d "specificdb"  # Uses specificdb, keeps default endpoint/key
+```
 
 ### Subcommands
 
@@ -59,12 +90,19 @@ cosmos-isolation-utils test -e <endpoint> -k <key> -d <database> [options]
 - `--create-database`: Create database if it doesn't exist
 - `-f, --force`: Skip confirmation prompts
 
-**Example:**
+**Examples:**
 ```bash
+# Using command line parameters
 cosmos-isolation-utils test -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
                       --create-database
+
+# Using environment variables
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="testdb"
+cosmos-isolation-utils test --create-database
 ```
 
 #### 2. Container Status
@@ -78,12 +116,19 @@ cosmos-isolation-utils status -e <endpoint> -k <key> -d <database> [options]
 **Options:**
 - `--detailed`: Show detailed information for each container
 
-**Example:**
+**Examples:**
 ```bash
+# Using command line parameters
 cosmos-isolation-utils status -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
                       --detailed
+
+# Using environment variables
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="testdb"
+cosmos-isolation-utils status --detailed
 ```
 
 #### 3. Dump Containers
@@ -102,23 +147,23 @@ cosmos-isolation-utils dump -e <endpoint> -k <key> -d <database> [options]
 
 **Examples:**
 ```bash
-# Dump all containers
+# Using command line parameters
 cosmos-isolation-utils dump -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
                       -c all -o all_containers.json
 
-# Dump specific containers
-cosmos-isolation-utils dump -e "https://your-cosmosdb.documents.azure.com:443/" \
-                      -k "your-primary-key" \
-                      -d "testdb" \
-                      -c "users,orders" -o selected_containers.json
+# Using environment variables
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="testdb"
+cosmos-isolation-utils dump -c all -o all_containers.json
 
-# Dump with pretty formatting
+# Mixed usage (command line overrides environment)
+export COSMOS_DATABASE="defaultdb"
 cosmos-isolation-utils dump -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
-                      -d "testdb" \
-                      -c all -o all_containers.json -p
+                      -c "users,orders" -o selected_containers.json -p
 ```
 
 #### 4. Upload Entries
@@ -140,16 +185,22 @@ cosmos-isolation-utils upload -e <endpoint> -k <key> -d <database> [options]
 
 **Examples:**
 ```bash
-# Upload all containers from dump
+# Using command line parameters
 cosmos-isolation-utils upload -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
                       -i all_containers.json --create-containers
 
-# Upload specific containers with dry-run
+# Using environment variables
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="testdb"
+cosmos-isolation-utils upload -i all_containers.json --create-containers
+
+# Mixed usage (command line overrides environment)
+export COSMOS_DATABASE="defaultdb"
 cosmos-isolation-utils upload -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
-                      -d "testdb" \
                       -i all_containers.json -c "users,orders" --dry-run
 ```
 
@@ -167,21 +218,22 @@ cosmos-isolation-utils delete-db -e <endpoint> -k <key> -d <database> [options]
 
 **Examples:**
 ```bash
-# List all databases
+# Using command line parameters
 cosmos-isolation-utils delete-db -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
                       -l
 
-# Delete a database (with confirmation)
-cosmos-isolation-utils delete-db -e "https://your-cosmosdb.documents.azure.com:443/" \
-                      -k "your-primary-key" \
-                      -d "testdb"
+# Using environment variables
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="testdb"
+cosmos-isolation-utils delete-db -l
 
-# Force delete a database (skip confirmation)
+# Mixed usage (command line overrides environment)
+export COSMOS_DATABASE="defaultdb"
 cosmos-isolation-utils delete-db -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
-                      -d "testdb" \
                       -f
 ```
 
@@ -290,18 +342,28 @@ See [Environment Setup Guide](docs/environment-setup.md) for detailed configurat
 ```bash
 # Test connection and list containers
 cosmos-isolation-utils test -e <endpoint> -k <key> -d <database> [--create-database] [-f]
+# OR with environment variables:
+cosmos-isolation-utils test
 
 # Show container status and statistics
 cosmos-isolation-utils status -e <endpoint> -k <key> -d <database> [--detailed]
+# OR with environment variables:
+cosmos-isolation-utils status --detailed
 
 # Dump containers to JSON file
 cosmos-isolation-utils dump -e <endpoint> -k <key> -d <database> -c <containers> -o <output> [-b <batch-size>] [-p]
+# OR with environment variables:
+cosmos-isolation-utils dump -c <containers> -o <output> [-b <batch-size>] [-p]
 
 # Upload containers from JSON file
 cosmos-isolation-utils upload -e <endpoint> -k <key> -d <database> -i <input> [-c <containers>] [-b <batch-size>] [-u] [-r] [-f] [--create-containers]
+# OR with environment variables:
+cosmos-isolation-utils upload -i <input> [-c <containers>] [-b <batch-size>] [-u] [-r] [-f] [--create-containers]
 
 # Manage databases
 cosmos-isolation-utils delete-db -e <endpoint> -k <key> -d <database> [-l] [-f]
+# OR with environment variables:
+cosmos-isolation-utils delete-db [-l] [-f]
 ```
 
 ### Environment Variables
@@ -316,6 +378,9 @@ export COSMOS_DATABASE="your-database"
 # Then run commands without -e, -k, -d flags
 cosmos-isolation-utils test
 cosmos-isolation-utils status --detailed
+```
+
+**Important**: Command line parameters override environment variables. If you specify both, the command line value takes precedence.
 
 ## Contributing
 
