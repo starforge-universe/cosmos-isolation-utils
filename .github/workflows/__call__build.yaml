@@ -17,6 +17,12 @@ jobs:
       - name: 'Checkout project sources'
         uses: actions/checkout@v5
 
+      - name: 'Show build information'
+        run: |
+          echo "Building package with version: ${{ inputs.version }}"
+          echo "Current pyproject.toml version:"
+          grep "^version = " pyproject.toml
+
       - name: 'Setup Python 3.10'
         uses: actions/setup-python@v5
         with:
@@ -28,10 +34,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install build twine
 
-      - name: 'Build package'
-        run: make build
+      - name: 'Update version in pyproject.toml'
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            # Update version in pyproject.toml
+            sed -i "s/^version = \".*\"/version = \"${{ inputs.version }}\"/" pyproject.toml
+            echo "Updated version to ${{ inputs.version }} in pyproject.toml"
+            cat pyproject.toml | grep "^version ="
+          fi
         env:
           VERSION: ${{ inputs.version }}
+
+      - name: 'Build package'
+        run: make build
+
+      - name: 'Verify version in built package'
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "Verifying built package version..."
+            # Check the wheel file version
+            WHEEL_FILE=$(find dist/ -name "*.whl" | head -1)
+            if [ -n "$WHEEL_FILE" ]; then
+              echo "Built wheel file: $WHEEL_FILE"
+              echo "Expected version: ${{ inputs.version }}"
+            fi
+          fi
 
       - name: 'Check distribution'
         run: make check-dist
