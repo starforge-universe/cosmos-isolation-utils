@@ -41,7 +41,7 @@ jobs:
   # 3. Verify the built package has the correct version
   build:
     name: 'Build Package'
-    needs: [checks]
+    needs: [extract-version, checks]
     uses: ./.github/workflows/__call__build.yaml
     with:
       version: ${{ needs.extract-version.outputs.version }}
@@ -115,7 +115,7 @@ jobs:
   # Create release tag
   tag-release:
     name: 'Tag Release'
-    needs: [publish-production]
+    needs: [extract-version, publish-production]
     runs-on: ubuntu-latest
     if: github.ref_type == 'branch' && startsWith(github.ref_name, 'release/')
     permissions:
