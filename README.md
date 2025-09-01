@@ -35,7 +35,7 @@ The tool requires the following Python packages:
 The unified CLI tool provides several subcommands, all sharing common connection parameters:
 
 ```bash
-cosmos-isolation-utils -e <endpoint> -k <key> -d <database> <subcommand> [options]
+cosmos-isolation-utils <subcommand> -e <endpoint> -k <key> -d <database> [options]
 ```
 
 ### Common Parameters
@@ -52,7 +52,7 @@ cosmos-isolation-utils -e <endpoint> -k <key> -d <database> <subcommand> [option
 Test the connection to a CosmosDB database and list available containers:
 
 ```bash
-cosmos-isolation-utils -e <endpoint> -k <key> -d <database> test [options]
+cosmos-isolation-utils test -e <endpoint> -k <key> -d <database> [options]
 ```
 
 **Options:**
@@ -61,10 +61,10 @@ cosmos-isolation-utils -e <endpoint> -k <key> -d <database> test [options]
 
 **Example:**
 ```bash
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils test -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      test --create-database
+                      --create-database
 ```
 
 #### 2. Container Status
@@ -72,7 +72,7 @@ cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
 View the status and statistics of all containers in a database:
 
 ```bash
-cosmos-isolation-utils -e <endpoint> -k <key> -d <database> status [options]
+cosmos-isolation-utils status -e <endpoint> -k <key> -d <database> [options]
 ```
 
 **Options:**
@@ -80,10 +80,10 @@ cosmos-isolation-utils -e <endpoint> -k <key> -d <database> status [options]
 
 **Example:**
 ```bash
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils status -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      status --detailed
+                      --detailed
 ```
 
 #### 3. Dump Containers
@@ -91,7 +91,7 @@ cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
 Export all entries from containers to a JSON file:
 
 ```bash
-cosmos-isolation-utils -e <endpoint> -k <key> -d <database> dump [options]
+cosmos-isolation-utils dump -e <endpoint> -k <key> -d <database> [options]
 ```
 
 **Options:**
@@ -103,22 +103,22 @@ cosmos-isolation-utils -e <endpoint> -k <key> -d <database> dump [options]
 **Examples:**
 ```bash
 # Dump all containers
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils dump -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      dump -c all -o all_containers.json
+                      -c all -o all_containers.json
 
 # Dump specific containers
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils dump -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      dump -c "users,orders" -o selected_containers.json
+                      -c "users,orders" -o selected_containers.json
 
-# List available containers
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+# Dump with pretty formatting
+cosmos-isolation-utils dump -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      dump -l
+                      -c all -o all_containers.json -p
 ```
 
 #### 4. Upload Entries
@@ -126,7 +126,7 @@ cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
 Restore containers from a JSON dump file:
 
 ```bash
-cosmos-isolation-utils -e <endpoint> -k <key> -d <database> upload [options]
+cosmos-isolation-utils upload -e <endpoint> -k <key> -d <database> [options]
 ```
 
 **Options:**
@@ -141,16 +141,16 @@ cosmos-isolation-utils -e <endpoint> -k <key> -d <database> upload [options]
 **Examples:**
 ```bash
 # Upload all containers from dump
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils upload -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      upload -i all_containers.json --create-containers
+                      -i all_containers.json --create-containers
 
 # Upload specific containers with dry-run
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils upload -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      upload -i all_containers.json -c "users,orders" --dry-run
+                      -i all_containers.json -c "users,orders" --dry-run
 ```
 
 #### 5. Database Management
@@ -158,20 +158,31 @@ cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
 List and manage databases:
 
 ```bash
-cosmos-isolation-utils -e <endpoint> -k <key> -d <database> delete-db [options]
+cosmos-isolation-utils delete-db -e <endpoint> -k <key> -d <database> [options]
 ```
 
 **Options:**
 - `-l, --list-databases`: List all existing databases
 - `-f, --force`: Skip confirmation prompts for deletion
 
-**Example:**
+**Examples:**
 ```bash
 # List all databases
-cosmos-isolation-utils -e "https://your-cosmosdb.documents.azure.com:443/" \
+cosmos-isolation-utils delete-db -e "https://your-cosmosdb.documents.azure.com:443/" \
                       -k "your-primary-key" \
                       -d "testdb" \
-                      delete-db -l
+                      -l
+
+# Delete a database (with confirmation)
+cosmos-isolation-utils delete-db -e "https://your-cosmosdb.documents.azure.com:443/" \
+                      -k "your-primary-key" \
+                      -d "testdb"
+
+# Force delete a database (skip confirmation)
+cosmos-isolation-utils delete-db -e "https://your-cosmosdb.documents.azure.com:443/" \
+                      -k "your-primary-key" \
+                      -d "testdb" \
+                      -f
 ```
 
 ## Project Structure
@@ -271,6 +282,40 @@ See [Environment Setup Guide](docs/environment-setup.md) for detailed configurat
 - **Sequential Publishing**: Test publication must succeed before production publication
 - **Secret Isolation**: PyPI credentials are scoped to specific environments
 - **Approval Process**: Production releases require explicit approval with optional wait timers
+
+## Command Reference
+
+### Quick Command Overview
+
+```bash
+# Test connection and list containers
+cosmos-isolation-utils test -e <endpoint> -k <key> -d <database> [--create-database] [-f]
+
+# Show container status and statistics
+cosmos-isolation-utils status -e <endpoint> -k <key> -d <database> [--detailed]
+
+# Dump containers to JSON file
+cosmos-isolation-utils dump -e <endpoint> -k <key> -d <database> -c <containers> -o <output> [-b <batch-size>] [-p]
+
+# Upload containers from JSON file
+cosmos-isolation-utils upload -e <endpoint> -k <key> -d <database> -i <input> [-c <containers>] [-b <batch-size>] [-u] [-r] [-f] [--create-containers]
+
+# Manage databases
+cosmos-isolation-utils delete-db -e <endpoint> -k <key> -d <database> [-l] [-f]
+```
+
+### Environment Variables
+
+You can also set connection parameters via environment variables:
+
+```bash
+export COSMOS_ENDPOINT="https://your-cosmosdb.documents.azure.com:443/"
+export COSMOS_KEY="your-primary-key"
+export COSMOS_DATABASE="your-database"
+
+# Then run commands without -e, -k, -d flags
+cosmos-isolation-utils test
+cosmos-isolation-utils status --detailed
 
 ## Contributing
 
