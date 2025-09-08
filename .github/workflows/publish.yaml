@@ -1,9 +1,0 @@
-name: 'Publish'
-
-on:
-  workflow_dispatch:
-
-jobs:
-  test:
-    name: 'Tests'
-    uses: ./.github/workflows/__call__checks.yaml
