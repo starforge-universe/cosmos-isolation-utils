@@ -20,7 +20,7 @@ Follow these steps to merge updates from the template remote into your repositor
 
 4. **Merge changes from the template remote's main branch**
    ```sh
-   git merge template/main
+   git merge template/main -m "Merge template updates"
    # Resolve any conflicts as needed
    ```
 
