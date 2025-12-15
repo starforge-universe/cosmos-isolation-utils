@@ -24,7 +24,7 @@ jobs:
         # Required for pyproject.toml access and version consistency
 
       - name: 'Download build artifacts'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: python-package
           path: dist/
