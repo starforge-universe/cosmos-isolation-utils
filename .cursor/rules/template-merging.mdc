@@ -1,0 +1,24 @@
+---
+alwaysApply: false
+---
+
+Execute the following steps.
+
+Perform @local-repository-update first.
+
+1. **Create a feature branch for the template update**
+   Create a new branch for the template update, called `feature/template-update`.
+
+2. **Merge changes from the template remote's main branch**
+   - Merge changes from the template remote's main branch into the current branch.
+   - Resolve merge conflicts according to the following aspects.
+      - You must keep dependencies of origin but version numbers must be taken from the template.
+      - Ask help in every other cases to resolve merge conflicts.
+      - Use `git add` command to add the changes files.
+   - Understand the content of `./.github/workflows/__call__checks.yaml` GitHub Workflow definition and execute all the checks locally.
+
+3. **Push the feature branch and open a pull request**
+   Push the changes to the remote repository and open a pull request.
+
+4. **Switch back to main and clean up the feature branch locally**
+   Switch back to the main branch and delete the feature branch.

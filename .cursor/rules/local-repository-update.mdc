@@ -1,0 +1,11 @@
+---
+alwaysApply: false
+---
+
+Execute the following steps.
+
+1. **Update your local main branch**
+   Switch to the main branch and pull the latest changes.
+
+2. **Fetch all remotes**
+   Fetch all remotes to get the latest changes from the remote repositories.
