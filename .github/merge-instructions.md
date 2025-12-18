@@ -3,40 +3,24 @@
 Follow these steps to merge updates from the template remote into your repository:
 
 1. **Update your local main branch**
-   ```sh
-   git checkout main
-   git pull origin main
-   ```
+   Switch to the main branch and pull the latest changes.
 
 2. **Fetch all remotes**
-   ```sh
-   git fetch --all
-   ```
+   Fetch all remotes to get the latest changes from all remotes.
 
 3. **Create a feature branch for the template update**
-   ```sh
-   git checkout -b feature/template-update
-   ```
+   Create a new branch for the template update.
 
 4. **Merge changes from the template remote's main branch**
-   ```sh
-   git merge template/main -m "Merge template updates"
-   # Resolve any conflicts as needed
-   ```
+   - Merge changes from the template remote's main branch into the current branch.
+   - Resolve merge conflicts according to the following aspects.
+      - You must keep dependencies of origin but version numbers must be taken from the template.
+      - Ask help in every other cases to resolve merge conflicts.
+      - Use git add command to add the changes files.
+   - Understand the content of `./.github/workflows/__call__checks.yaml` GitHub Workflow definition and execute all the checks locally.
 
-5. **Test and validate the merge**
-   - Execute all checks defined in `./.github/workflows/__call__checks.yaml` to ensure nothing is broken.
+5. **Push the feature branch and open a pull request**
+   Push the changes to the remote repository and open a pull request.
 
-6. **Add files to git if there are changes**
-   - Use git add command to add the changes files.
-
-7. **Push the feature branch and open a pull request**
-   ```sh
-   git push origin feature/template-update
-   ```
-
-8. **Switch back to main and clean up the feature branch locally**
-   ```sh
-   git checkout main
-   git branch -d feature/template-update
-   ```
+6. **Switch back to main and clean up the feature branch locally**
+   Switch back to the main branch and delete the feature branch.
