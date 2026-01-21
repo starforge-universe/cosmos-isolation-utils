@@ -23,10 +23,10 @@ jobs:
           echo "Current pyproject.toml version:"
           grep "^version = " pyproject.toml
 
-      - name: 'Setup Python 3.10'
+      - name: 'Setup Python 3.11'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.11'
           cache: 'pip'
 
       - name: 'Install build dependencies'
