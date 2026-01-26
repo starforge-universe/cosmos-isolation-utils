@@ -1,0 +1,100 @@
+name: 'Auto Merge'
+
+on:
+  workflow_run:
+    workflows: [ 'Pull request checks' ]
+    types: [ completed ]
+
+jobs:
+  merge:
+    name: 'Merge'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Pull request information'
+        run: |
+          echo "github.event.workflow_run.event: ${{ github.event.workflow_run.event }}"
+          echo "github.event.workflow_run.conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "github.event.workflow_run.actor.login: ${{ github.event.workflow_run.actor.login }}"
+          echo "github.event.workflow_run.head_sha: ${{ github.event.workflow_run.head_sha }}"
+      - name: 'Find pull request'
+        id: find-pr
+        if: >
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.actor.login == 'dependabot[bot]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          # Extract repository owner from github.repository (format: owner/repo)
+          REPO_OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          
+          # Find PR by head branch (format: owner:branch)
+          PR_RESPONSE=$(curl -s \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?head=${REPO_OWNER}:${HEAD_BRANCH}&state=open")
+          
+          PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.[0].number // empty')
+          
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Could not find PR for head branch: $HEAD_BRANCH (SHA: $HEAD_SHA)"
+            exit 1
+          fi
+          
+          echo "Found PR #$PR_NUMBER for head branch: $HEAD_BRANCH"
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+      - name: 'Check if pull request is mergeable'
+        if: >
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.actor.login == 'dependabot[bot]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.find-pr.outputs.pr_number }}
+        run: |
+          echo "Checking if PR #$PR_NUMBER is mergeable..."
+          
+          # Fetch PR details to check mergeable status
+          PR_DETAILS=$(curl -s \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER)
+          
+          MERGEABLE=$(echo "$PR_DETAILS" | jq -r '.mergeable // "null"')
+          
+          if [ "$MERGEABLE" = "null" ]; then
+            echo "PR mergeability is still being calculated. Waiting..."
+            # Wait a bit and retry (GitHub may need time to calculate)
+            sleep 5
+            PR_DETAILS=$(curl -s \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER)
+            MERGEABLE=$(echo "$PR_DETAILS" | jq -r '.mergeable // "null"')
+          fi
+          
+          if [ "$MERGEABLE" != "true" ]; then
+            echo "PR #$PR_NUMBER is not mergeable (status: $MERGEABLE)"
+            echo "PR state: $(echo "$PR_DETAILS" | jq -r '.state')"
+            echo "PR mergeable_state: $(echo "$PR_DETAILS" | jq -r '.mergeable_state // "unknown"')"
+            exit 1
+          fi
+          
+          echo "PR #$PR_NUMBER is mergeable"
+      - name: 'Merge the pull request'
+        if: >
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.actor.login == 'dependabot[bot]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.find-pr.outputs.pr_number }}
+        run: |
+          echo "Merging PR #$PR_NUMBER"
+          curl -X PUT \
+               -H "Authorization: Bearer $GITHUB_TOKEN" \
+               -H "Accept: application/vnd.github+json" \
+               https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER/merge \
+               -d '{"merge_method": "merge"}'
