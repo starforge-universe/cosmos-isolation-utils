@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+Project must follow the following Git guidelines:
+- Never use GitHub CLI to perform any actions.
+- Always sign git commits.
