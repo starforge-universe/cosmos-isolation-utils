@@ -1,4 +1,5 @@
 ---
+description: "Use when merging or syncing changes from the template remote (e.g. 'update from template', 'merge template', 'sync template repo'). Covers creating a feature branch, merging from template main, resolving conflicts (keep origin dependencies, use template version numbers), running workflow checks, opening a PR, and cleaning up."
 alwaysApply: false
 ---
 

@@ -1,4 +1,5 @@
 ---
+description: "Use when updating the local repo before template merges or other sync tasks: switch to main, pull latest, and fetch all remotes. Often used as the first step before template-merging (e.g. 'update from template')."
 alwaysApply: false
 ---
 
