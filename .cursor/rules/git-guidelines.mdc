@@ -4,4 +4,5 @@ alwaysApply: true
 
 Project must follow the following Git guidelines:
 - Never use GitHub CLI to perform any actions.
-- Always sign git commits.
+- **Git commands must be executed outside of any sandbox** (use full host permissions / the user’s environment) so that `gpg`, `gpg-agent`, and `~/.gnupg` are reachable. Commit signing is mandatory; do not run `git commit` in a context where GPG cannot sign.
+- **Never** use `git commit --no-gpg-sign` or otherwise bypass signing to work around environment limits. If the current execution context cannot satisfy the above, stop and give the user exact commands to run in their own terminal instead of performing unsigned commits yourself.
