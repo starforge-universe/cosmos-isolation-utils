@@ -1,4 +1,0 @@
-# Test dependencies
-# unittest is part of Python's standard library
-click>=8.0.0
-

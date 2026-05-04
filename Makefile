@@ -1,6 +1,6 @@
 .PHONY: help venv install install-dev lint lint-unit-tests lint-integration-tests test-unit test-integration test-unit-coverage build check-dist upload-pypi clean check start
 
-# Python package under ./starforge_library_template/
+# Python package under ./cosmos_isolation_utils/
 
 PYTHON := python3
 VENV := .venv
@@ -14,9 +14,9 @@ PYLINTFLAGS_SRC := --fail-under=9
 # Tests use many short functions without docstrings; threshold is looser.
 PYLINTFLAGS_TESTS := --fail-under=8
 
-SRC_DIR := starforge_library_template
+SRC_DIR := cosmos_isolation_utils
 TEST_DIR := tests
-UNIT_TEST_DIR := $(TEST_DIR)/unit
+UNIT_TEST_DIR := $(TEST_DIR)
 INTEGRATION_TEST_DIR := $(TEST_DIR)/integration
 BUILD_DIR := dist
 REPORTS_DIR := reports
@@ -43,7 +43,7 @@ help:
 	@echo "  make upload-pypi             - twine upload $(BUILD_DIR)/* (set TWINE_*, see help)"
 	@echo "  make clean                   - Remove caches, build artifacts, coverage reports"
 	@echo "  make check                   - Run all lints plus unit and integration tests"
-	@echo "  make start                   - Show starforge_library_template CLI --help (smoke check)"
+	@echo "  make start                   - Show cosmos_isolation_utils CLI --help (smoke check)"
 
 venv:
 	@if [ ! -d "$(VENV)" ]; then \
@@ -159,6 +159,6 @@ check: lint lint-unit-tests lint-integration-tests test-unit test-integration
 	@echo "Check completed."
 
 start:
-	@echo "starforge_library_template CLI (smoke check):"
+	@echo "cosmos_isolation_utils CLI (smoke check):"
 	@test -d "$(VENV)" || (echo "Run 'make venv' first."; exit 1)
-	@$(PYTHON_VENV) -m starforge_library_template --help
+	@$(PYTHON_VENV) -m cosmos_isolation_utils --help
