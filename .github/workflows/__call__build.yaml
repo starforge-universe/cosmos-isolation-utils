@@ -1,3 +1,5 @@
+# Reusable workflow: version optionally pinned, then sdist/wheel build + twine check via Makefile.
+
 name: 'Submodule - Build'
 
 on:
@@ -5,9 +7,15 @@ on:
     inputs:
       version:
         description: 'Version to build'
-        required: false
+        required: true
         type: string
-        default: '0.1.0'
+      artifact-name:
+        description: 'Artifact name to upload'
+        required: true
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
 
 jobs:
   build:
@@ -17,55 +25,52 @@ jobs:
       - name: 'Checkout project sources'
         uses: actions/checkout@v6
 
-      - name: 'Show build information'
-        run: |
-          echo "Building package with version: ${{ inputs.version }}"
-          echo "Current pyproject.toml version:"
-          grep "^version = " pyproject.toml
-
-      - name: 'Setup Python 3.11'
+      - name: 'Setup Python ${{ env.PYTHON_VERSION }}'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: 'Install build dependencies'
+      # Creates .venv and installs dev deps (build, twine, …) so Makefile targets work.
+      - name: 'Install dependencies (make install-dev)'
+        run: make install-dev
+
+      - name: 'Show build information'
         run: |
-          python -m pip install --upgrade pip
-          pip install build twine
+          echo "Building package with version input: ${{ inputs.version }}"
+          echo "Current pyproject.toml version:"
+          grep "^version = " pyproject.toml
 
       - name: 'Update version in pyproject.toml'
         run: |
           if [ -n "${{ inputs.version }}" ]; then
-            # Update version in pyproject.toml
             sed -i "s/^version = \".*\"/version = \"${{ inputs.version }}\"/" pyproject.toml
             echo "Updated version to ${{ inputs.version }} in pyproject.toml"
-            cat pyproject.toml | grep "^version ="
+            grep "^version = " pyproject.toml
           fi
-        env:
-          VERSION: ${{ inputs.version }}
 
-      - name: 'Build package'
+      - name: 'Build package (make build)'
         run: make build
 
       - name: 'Verify version in built package'
         run: |
           if [ -n "${{ inputs.version }}" ]; then
-            echo "Verifying built package version..."
-            # Check the wheel file version
-            WHEEL_FILE=$(find dist/ -name "*.whl" | head -1)
-            if [ -n "$WHEEL_FILE" ]; then
-              echo "Built wheel file: $WHEEL_FILE"
-              echo "Expected version: ${{ inputs.version }}"
-            fi
+            echo "Verifying built artifacts exist for expected version ${{ inputs.version }}..."
+            echo "Wheels:"
+            find dist/ -maxdepth 1 -name '*.whl' -print || true
+            echo "sdists:"
+            find dist/ -maxdepth 1 -name '*.tar.gz' -print || true
           fi
 
-      - name: 'Check distribution'
+      - name: 'Check distribution (make check-dist)'
         run: make check-dist
 
       - name: 'Upload build artifacts'
         uses: actions/upload-artifact@v7
         with:
-          name: python-package
-          path: dist/
+          name: ${{ inputs.artifact-name }}
+          path: |
+            dist/
+            Makefile
+            pyproject.toml
           retention-days: 30

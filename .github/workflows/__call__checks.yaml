@@ -1,7 +1,14 @@
+# Reusable workflow: lint, unit tests, and coverage via project Makefile targets.
+# Requires a Makefile with: install-dev, lint*, test-unit, test-unit-coverage.
+
 name: 'Submodule - Check'
 
 on:
   workflow_call:
+
+env:
+  PYTHON_VERSION: '3.11'
+  INTEGRATION_TEST_DIR: 'tests/integration'
 
 jobs:
   pylint:
@@ -11,18 +18,24 @@ jobs:
       - name: 'Checkout project sources'
         uses: actions/checkout@v6
 
-      - name: 'Setup Python 3.11'
+      - name: 'Setup Python ${{ env.PYTHON_VERSION }}'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: 'Install dependencies'
-        run: |
-          pip install -e ".[dev]"
+      # Creates .venv and editable install so Makefile targets work.
+      - name: 'Install dependencies (make install-dev)'
+        run: make install-dev
 
-      - name: 'Run Pylint'
+      - name: 'Run pylint — package'
         run: make lint
+
+      - name: 'Run pylint — unit tests'
+        run: make lint-unit-tests
+
+      - name: 'Run pylint — integration tests (if present)'
+        run: make lint-integration-tests
 
   unitTest:
     name: 'Unit Test'
@@ -31,42 +44,58 @@ jobs:
       - name: 'Checkout project sources'
         uses: actions/checkout@v6
 
-      - name: 'Setup Python 3.11'
+      - name: 'Setup Python ${{ env.PYTHON_VERSION }}'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: 'Install dependencies'
-        run: |
-          pip install -e ".[dev]"
+      - name: 'Install dependencies (make install-dev)'
+        run: make install-dev
 
-      - name: 'Test with unittest'
-        run: make test
+      - name: 'Run unit tests with coverage'
+        run: make test-unit-coverage
 
-  coverage:
-    name: 'Coverage'
+      - name: 'Upload coverage reports'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: |
+            htmlcov/
+            reports/coverage.xml
+          retention-days: 30
+  
+  integrationTest:
+    name: 'Integration Test'
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout project sources'
         uses: actions/checkout@v6
+      
+      - name: 'Check if integration tests exist'
+        id: check-integration-tests
+        run: |
+          if [ -d "$(INTEGRATION_TEST_DIR)" ] && [ -n "$$(find $(INTEGRATION_TEST_DIR) -name 'test_*.py' 2>/dev/null | head -1)" ]; then
+            echo "Integration tests found under $(INTEGRATION_TEST_DIR)."
+            integration-tests-exist=true
+          else
+            echo "No integration tests found under $(INTEGRATION_TEST_DIR)."
+            integration_tests_exist=false
+          fi
+          echo "integration_tests_exist=$integration_tests_exist" >> "$GITHUB_OUTPUT"
 
-      - name: 'Setup Python 3.11'
+      - name: 'Setup Python ${{ env.PYTHON_VERSION }}'
+        if: steps.check-integration-tests.outputs.integration_tests_exist == 'true'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: 'Install dependencies'
-        run: |
-          pip install -e ".[dev]"
+      - name: 'Install dependencies (make install-dev)'
+        if: steps.check-integration-tests.outputs.integration_tests_exist == 'true'
+        run: make install-dev
 
-      - name: 'Run tests with coverage'
-        run: make test-cov
-
-      - name: 'Upload coverage report to artifacts'
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-report
-          path: htmlcov/
-          retention-days: 30
+      - name: 'Run integration tests (pytest)'
+        if: steps.check-integration-tests.outputs.integration_tests_exist == 'true'
+        # Integration tests are optional, so we need to check if they exist before running them.
+        run: make test-integration

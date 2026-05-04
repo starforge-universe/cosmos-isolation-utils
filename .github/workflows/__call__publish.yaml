@@ -1,46 +1,67 @@
-name: 'Submodule - Publish'
+# Reusable workflow: checkout, download build artifact, venv, twine upload via Makefile.
+# Expects artifact from __call__build (dist/, Makefile, pyproject.toml).
+
+name: 'Submodule - Publish PyPI'
 
 on:
   workflow_call:
     inputs:
-      pypi-repository:
-        description: 'PyPI repository URL'
+      environment:
+        description: 'Environment to publish to'
+        required: true
+        type: string
+        default: 'test'
+      twine-repository-url:
+        description: 'Twine --repository-url (upload API, e.g. Test PyPI or upload.pypi.org legacy)'
+        required: true
+        type: string
+      artifact-name:
+        description: 'Artifact name from the build job'
+        required: true
+        type: string
+      python-version:
+        description: 'Python version for setup-python'
         required: false
         type: string
-        default: 'https://pypi.org/simple/'
+        default: '3.11'
     secrets:
-      pypi-username:
+      pypi_username:
+        description: 'PyPI username for twine upload'
         required: true
-      pypi-password:
+      pypi_password:
+        description: 'PyPI password or API token for twine upload'
         required: true
 
 jobs:
   publish:
-    name: 'Publish to PyPI'
+    name: 'Publish'
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
-      - name: 'Checkout project sources'
-        uses: actions/checkout@v6
-        # Required for pyproject.toml access and version consistency
-
+      # Overlay built wheels and build-time pyproject/Makefile (version matches build job).
       - name: 'Download build artifacts'
         uses: actions/download-artifact@v8
         with:
-          name: python-package
-          path: dist/
+          name: ${{ inputs.artifact-name }}
+          path: .
 
-      - name: 'Setup Python 3.11'
+      - name: 'Setup Python ${{ inputs.python-version }}'
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: ${{ inputs.python-version }}
           cache: 'pip'
 
-      - name: 'Install twine'
-        run: pip install twine
+      - name: 'Make venv'
+        run: make venv
 
-      - name: 'Publish to PyPI'
-        run: |
-          PYPI_REPOSITORY=${{ inputs.pypi-repository }} \
-          PYPI_USERNAME=${{ secrets.pypi-username }} \
-          PYPI_PASSWORD=${{ secrets.pypi-password }} \
-          make upload-pypi
+      - name: 'Install twine'
+        run: .venv/bin/pip install twine
+
+      # Makefile upload-pypi reads TWINE_* (see Makefile).
+      - name: 'Publish with twine (make upload-pypi)'
+        env:
+          TWINE_USERNAME: ${{ secrets.pypi_username }}
+          TWINE_PASSWORD: ${{ secrets.pypi_password }}
+          TWINE_REPOSITORY_URL: ${{ inputs.twine-repository-url }}
+          TWINE_NON_INTERACTIVE: '1'
+        run: make upload-pypi
