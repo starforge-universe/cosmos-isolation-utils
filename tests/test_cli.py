@@ -36,10 +36,10 @@ class TestCLI(unittest.TestCase):
         """Test that all subcommands are available."""
         # Test each subcommand help
         subcommands = ['test', 'status', 'dump', 'upload', 'delete-db']
-        
+
         result = self.runner.invoke(main, ['--help'])
         self.assertEqual(result.exit_code, 0)
-        
+
         for subcommand in subcommands:
             self.assertIn(subcommand, result.output)
 
@@ -51,7 +51,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn('--endpoint', result.output)
         self.assertIn('--key', result.output)
         self.assertIn('--database', result.output)
-        
+
         # Test that another subcommand also shows the connection parameters
         result = self.runner.invoke(main, ['dump', '--help'])
         self.assertEqual(result.exit_code, 0)
